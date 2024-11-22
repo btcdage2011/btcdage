@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聪之脉搏</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        nav {
+            text-align: center; /* 导航栏居中 */
+            margin-bottom: 20px; /* 与内容的间距 */
+        }
+        nav a {
+            text-decoration: none; /* 去掉下划线 */
+            color: #007BFF; /* 超链接颜色 */
+            font-size: 16px;
+            margin: 0 15px; /* 每个链接之间的间距 */
+        }
+        nav a:hover {
+            text-decoration: underline; /* 鼠标悬停时显示下划线 */
+        }
+        h1 {
+            text-align: center; /* 标题居中 */
+            margin-bottom: 10px;
+        }
+        #real-time-data {
+            font-size: 14px;
+            text-align: center; /* 实时行情居中 */
+            margin-bottom: 10px; /* 添加与下方查询控件的间距 */
+        }
+        #controls {
+            margin-bottom: 20px;
+            text-align: center; /* 查询控件居中 */
+        }
+        #chart-container {
+            position: relative;
+            width: 90%;
+            height: 70vh;
+            margin: 0 auto; /* 图表容器居中 */
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="#realtime-index">实时达哥指数</a>
+        <a href="#history-chart">达哥指数历史曲线</a>
+        <a href="#download-widget">桌面组件下载</a>
+        <a href="https://weibo.com" target="_blank">达哥微博</a>
+        <a href="https://example.com" target="_blank">比特币布道者网站</a>
+    </nav>
+    <h1>聪之脉搏</h1>
+    <div id="real-time-data">加载中...</div>
+    <div id="controls">
+        <label for="start-date">开始日期：</label>
+        <input type="date" id="start-date">
+        <label for="end-date">结束日期：</label>
+        <input type="date" id="end-date">
+        <label for="granularity">粒度：</label>
+        <select id="granularity">
+            <option value="daily" selected>每天</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
+            <option value="yearly">每年</option>
+        </select>
+        <button onclick="fetchAndUpdate()">查询</button> 【注意：历史曲线数据会滞后一天。】
+    </div>
+    <div id="chart-container">
+        <canvas id="priceChart"></canvas>
+    </div>
+    <script>
+        let chart;
+
+        // 设置默认日期
+        function setDefaultDates() {
+            const today = new Date();
+            const lastYear = new Date();
+            lastYear.setFullYear(today.getFullYear() - 1);
+
+            document.getElementById('end-date').value = today.toISOString().split('T')[0];
+            document.getElementById('start-date').value = lastYear.toISOString().split('T')[0];
+        }
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+        // 获取实时行情
+        async function fetchRealTimeData() {
+            try {
+                const response = await fetch('http://122.51.252.52:7927/api/realtime_prices');
+                const data = await response.json();
+
+                // 提取数据
+                const btcUsd = data.btc_usd; // BTC to USD
+                const usdCny = data.usd_cny; // USD to CNY
+                const btcCny = btcUsd * usdCny; // BTC to CNY
+                const satsPerBtc = 1e8; // 1 BTC = 100,000,000 Sats
+                const usdToSats = 1 / (btcUsd / satsPerBtc); // USD to Sats
+                const cnyToSats = 1 / (btcCny / satsPerBtc); // CNY to Sats
+                const cnyUsd = 1 / usdCny; // CNY to USD
+
+                let currentDate = new Date();
+                // 手动调整为东八区时间（北京时间）
+                currentDate.setHours(currentDate.getHours());
+                let currentTime = formatDate(currentDate);
+
+                // 更新实时行情显示
+                document.getElementById('real-time-data').innerHTML = `
+                    <strong>实时行情： ${currentTime} （每分钟自动更新）</strong> <br>
+                    <strong>【BTC/USD】</strong>1比特币=${btcUsd.toFixed(2)}美元  |
+                    <strong>【BTC/CNY】</strong>1比特币=${btcCny.toFixed(2)}元  |
+                    <strong>【USD/Sats】</strong>1美元=${usdToSats.toFixed(2)}聪  |
+                    <strong>【CNY/Sats】</strong>1元=${cnyToSats.toFixed(2)}聪  |
+                    <strong>【USD/CNY】</strong>1美元=${usdCny.toFixed(2)}元  |
+                    <strong>【CNY/USD】</strong>1元=${cnyUsd.toFixed(2)}美元
+                `;
+            } catch (error) {
+                console.error('Error fetching real-time data:', error);
+                document.getElementById('real-time-data').innerHTML = `
+                    <strong>Error fetching real-time data. Please try again later.</strong>
+                `;
+            }
+        }
+
+        // 初始化时设置默认日期和加载实时行情
+        window.onload = async () => {
+            setDefaultDates();
+
+            // 获取默认时间范围内的数据
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            const data = await fetchData(startDate, endDate, 'daily');
+            createChart(data);
+
+            // 加载实时行情并设置自动刷新
+            fetchRealTimeData();
+            setInterval(fetchRealTimeData, 60000); // 每分钟刷新一次
+        };
+
+        function calculateDerivedData(data) {
+            const btcToUsd = data.prices; // 比特币对美元价格
+            const usdToSats = data.prices.map(price => price ? 1e8 / price : null); // 美元对比特聪价格
+            const btcToCny = data.prices.map((price, i) => price && data.ucs[i] ? price * data.ucs[i] : null); // 比特币对人民币价格
+            const cnyToSats = data.prices.map((price, i) => price && data.ucs[i] ? 1e8 / (price * data.ucs[i]) : null); // 人民币对比特聪价格
+            const usdToCny = data.ucs; // 美元对人民币汇率
+            const cnyToUsd = data.ucs.map(uc => uc ? 1 / uc : null); // 人民币对美元汇率
+
+            return { btcToUsd, usdToSats, btcToCny, cnyToSats, usdToCny, cnyToUsd };
+        }
+
+        async function fetchData(startDate, endDate, granularity) {
+            const params = new URLSearchParams();
+            if (startDate) params.append('start', startDate);
+            if (endDate) params.append('end', endDate);
+            params.append('granularity', granularity);
+
+            const response = await fetch(`http://122.51.252.52:7927/api/chart_data?${params.toString()}`);
+            const data = await response.json();
+            return data;
+        }
+
+        function createChart(data) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+
+            if (chart) {
+                chart.destroy(); // 销毁旧图表
+            }
+
+            const derivedData = calculateDerivedData(data);
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: '比特币价格 (CNY)',
+                            data: derivedData.btcToCny,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'btc-cny',
+                            hidden: false, // 默认显示
+                        },
+                        {
+                            label: '比特币价格 (USD)',
+                            data: derivedData.btcToUsd,
+                            borderColor: 'rgba(0, 0, 139, 1)',
+                            backgroundColor: 'rgba(0, 0, 139, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'btc-usd',
+                            hidden: true, // 默认隐藏
+                        },
+                        {
+                            label: '美元对比特聪价格 (sats)',
+                            data: derivedData.usdToSats,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'usd-sats',
+                            hidden: true,
+                        },
+                        {
+                            label: '人民币对比特聪价格 (sats)',
+                            data: derivedData.cnyToSats,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'cny-sats',
+                            hidden: true,
+                        },
+                        {
+                            label: '美元对人民币汇率 (￥)',
+                            data: derivedData.usdToCny,
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'usd-cny',
+                            hidden: true,
+                        },
+                        {
+                            label: '人民币对美元汇率 ($)',
+                            data: derivedData.cnyToUsd,
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'cny-usd',
+                            hidden: true,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: { display: true, text: '日期' },
+                        },
+                        'btc-usd': {
+                            position: 'left',
+                            title: { display: true, text: '比特币价格 (USD)' },
+                            display: false, // 初始隐藏
+                        },
+                        'btc-cny': {
+                            position: 'left',
+                            title: { display: true, text: '比特币价格 (CNY)' },
+                            display: true, // 默认显示
+                        },
+                        'usd-cny': {
+                            position: 'left',
+                            title: { display: true, text: '美元对人民币汇率 (￥)' },
+                            display: false,
+                        },
+                        'usd-sats': {
+                            position: 'right',
+                            title: { display: true, text: '美元对比特聪价格 (sats)' },
+                            display: false,
+                        },
+                        'cny-sats': {
+                            position: 'right',
+                            title: { display: true, text: '人民币对比特聪价格 (sats)' },
+                            display: false,
+                        },
+                        'cny-usd': {
+                            position: 'right',
+                            title: { display: true, text: '人民币对美元汇率 ($)' },
+                            display: false,
+                        },
+                    },
+                    plugins: {
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                threshold: 10,
+                            },
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                            },
+                        },
+                        legend: {
+                            onClick: (e, legendItem, legend) => {
+                                const index = legendItem.datasetIndex;
+                                const meta = legend.chart.getDatasetMeta(index);
+                                const yAxisID = legend.chart.data.datasets[index].yAxisID;
+
+                                // 切换数据集显示/隐藏
+                                meta.hidden = !meta.hidden;
+
+                                // 同步 Y 轴显示/隐藏
+                                legend.chart.options.scales[yAxisID].display = !meta.hidden;
+
+                                legend.chart.update();
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        async function fetchAndUpdate() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value || new Date().toISOString().split('T')[0];
+            const granularity = document.getElementById('granularity').value;
+
+            const data = await fetchData(startDate, endDate, granularity);
+
+            createChart(data);
+        }
+    </script>
+</body>
+</html>
