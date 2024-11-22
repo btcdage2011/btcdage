@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>达哥指数 - 市场热度预测</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .result {
+            background-color: #fff;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .status {
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        .status span {
+            font-weight: bold;
+        }
+        .loading {
+            font-size: 18px;
+            color: #888;
+        }
+        .index-explanation {
+            background-color: #fff;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .index-explanation h3 {
+            margin-bottom: 10px;
+        }
+        .index-explanation p {
+            margin: 5px 0;
+        }
+        nav {
+            text-align: center; /* 导航栏居中 */
+            margin-bottom: 20px; /* 与内容的间距 */
+        }
+        nav a {
+            text-decoration: none; /* 去掉下划线 */
+            color: #007BFF; /* 超链接颜色 */
+            font-size: 16px;
+            margin: 0 15px; /* 每个链接之间的间距 */
+        }
+        nav a:hover {
+            text-decoration: underline; /* 鼠标悬停时显示下划线 */
+        }
+    </style>
+</head>
+<body>
+  <nav>
+      <a href="sats.html">聪之道（每日更新）</a>
+      <a href="dgzs.html">达哥指数历史曲线（每日更新）</a>
+      <a href="ssdgzs.html">实时达哥指数(需要魔法)</a>
+      <a href="https://pan.baidu.com/share/init?surl=mStbBH-6qp3wMh7fk8oTPQ&pwd=hjzt" target="_blank">软件下载</a>
+      <a href="https://weibo.com/u/7747014561" target="_blank">达哥微博</a>
+      <a href="https://startbitcoin.org/" target="_blank">比特币布道者网站</a>
+  </nav>
+    <div class="container">
+        <h1>达哥指数 - 市场热度预测</h1>
+        <!-- 指数说明部分 -->
+        <div class="index-explanation">
+            <h3>达哥指数说明：</h3>
+            <p><strong>冷淡</strong> (&lt; 0): 市场情绪非常低迷，可能处于冷淡阶段。可按策略定投加大定投额度。</p>
+            <p><strong>兴趣</strong> (1 - 20): 市场情绪有一定的回暖，交易量略有上升。可放心定额定投。</p>
+            <p><strong>乐观</strong> (20 - 40): 市场情绪逐渐变得乐观，交易活跃。可按策略正常定投。</p>
+            <p><strong>热烈</strong> (40 - 75): 市场非常活跃，投资者情绪高涨。可适当减少定投份额。</p>
+            <p><strong>过热</strong> (75 - 90): 市场热度过高，投资者过于乐观，可能存在过度投机的风险。建议进一步减少定投份额。</p>
+            <p><strong>疯狂</strong> (90 - 100): 市场情绪达到极致，投资者过于狂热，风险极大。建议停止定投等待机会。</p>
+        </div>
+
+        <div class="loading">加载中...</div>
+        <div class="result" style="display:none;">
+            <p id="datetime"></p>
+            <p id="heat-index"></p>
+            <p id="status"></p>
+            <p id="spot-price"></p>
+            <p id="next-contract-price"></p>  <!-- 新增：显示次季价格 -->
+            <p id="price-difference"></p>  <!-- 新增：显示价差 -->
+            <p id="next-deviation"></p>  <!-- 显示次季偏离值 -->
+        </div>
+    </div>
+
+    <script>
+        // 获取币安现货市场的价格
+        async function getBinanceSpotPrice(symbol) {
+            const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            return parseFloat(data.price);
+        }
+
+        // 获取币安期货合约的价格
+        async function getBinanceFuturesPrice(symbol) {
+            const url = `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            return parseFloat(data.price);
+        }
+
+        // 获取最近的最后一个周五的日期
+        function getLastFriday(year, month) {
+            const lastDay = new Date(year, month, 0); // 获取该月最后一天
+            const weekday = lastDay.getDay(); // 获取最后一天是星期几
+            const lastFriday = new Date(lastDay);
+            lastFriday.setDate(lastDay.getDate() - (weekday + 2) % 7); // 上一个周五
+            return lastFriday;
+        }
+
+        // 获取合约到期日期和合约符号
+        function getContractExpiryDates(symbol) {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth() + 1;
+
+            let currentSeasonMonth, nextSeasonMonth;
+
+            // 确定季度交割月
+            if ([1, 2, 3].includes(currentMonth)) {
+                currentSeasonMonth = 3;
+                nextSeasonMonth = 6;
+            } else if ([4, 5, 6].includes(currentMonth)) {
+                currentSeasonMonth = 6;
+                nextSeasonMonth = 9;
+            } else if ([7, 8, 9].includes(currentMonth)) {
+                currentSeasonMonth = 9;
+                nextSeasonMonth = 12;
+            } else {
+                currentSeasonMonth = 12;
+                nextSeasonMonth = 3; // 翻到下一年
+            }
+
+            // 获取交割日期
+            const currentSeasonDate = getLastFriday(currentYear, currentSeasonMonth);
+            const nextSeasonDate = nextSeasonMonth === 3
+                ? getLastFriday(currentYear + 1, nextSeasonMonth)
+                : getLastFriday(currentYear, nextSeasonMonth);
+
+            const currentContractSymbol = `${symbol}_${currentSeasonDate.getFullYear().toString().slice(-2)}${(currentSeasonDate.getMonth() + 1).toString().padStart(2, '0')}${currentSeasonDate.getDate().toString().padStart(2, '0')}`;
+            const nextContractSymbol = `${symbol}_${nextSeasonDate.getFullYear().toString().slice(-2)}${(nextSeasonDate.getMonth() + 1).toString().padStart(2, '0')}${nextSeasonDate.getDate().toString().padStart(2, '0')}`;
+
+            return { currentSeasonDate, nextSeasonDate, currentContractSymbol, nextContractSymbol };
+        }
+
+        // 计算达哥热度指数
+        function calculateHeatIndex(nextDeviation, nextSeasonDate) {
+            const daysToNextSeason = Math.floor((nextSeasonDate - new Date()) / (1000 * 60 * 60 * 24));
+            const A = Math.min(1, Math.max(1/180, daysToNextSeason / 180));
+            const B = nextDeviation * 5;
+            const C = B/A;
+            return C;
+        }
+
+        // 计算市场状态
+        function marketStatus(heatIndex) {
+            if (heatIndex < 5) return "冷淡";
+            if (heatIndex <= 20) return "兴趣";
+            if (heatIndex <= 40) return "乐观";
+            if (heatIndex <= 75) return "热烈";
+            if (heatIndex <= 90) return "过热";
+            return "疯狂";
+        }
+
+        // 主函数
+        async function updateMarketStatus() {
+            const spotSymbol = "BTCUSDT";  // 现货市场BTCUSDT
+            try {
+                const { currentSeasonDate, nextSeasonDate, currentContractSymbol, nextContractSymbol } = getContractExpiryDates(spotSymbol);
+                const spotPrice = await getBinanceSpotPrice(spotSymbol);
+                const nextContractPrice = await getBinanceFuturesPrice(nextContractSymbol);
+
+                if (spotPrice && nextContractPrice) {
+                    const priceDifference = nextContractPrice - spotPrice; // 价差
+                    const nextDeviation = (priceDifference / spotPrice) * 100; // 偏离值
+                    const heatIndex = calculateHeatIndex(nextDeviation, nextSeasonDate);
+
+                    document.getElementById('datetime').innerText = `当前时间: ${new Date().toLocaleString()}`;
+                    document.getElementById('heat-index').innerText = `达哥指数: ${heatIndex.toFixed(2)}`;
+                    document.getElementById('status').innerText = `市场状态: ${marketStatus(heatIndex)}`;
+                    document.getElementById('spot-price').innerText = `现货价格: ${spotPrice.toFixed(2)} USDT`;
+                    document.getElementById('next-contract-price').innerText = `次季价格: ${nextContractPrice.toFixed(2)} USDT`; // 显示次季价格
+                    document.getElementById('price-difference').innerText = `价差: ${priceDifference.toFixed(2)} USDT`; // 显示价差
+                    document.getElementById('next-deviation').innerText = `次季偏离值: ${nextDeviation.toFixed(2)}%`; // 显示偏离值
+
+                    document.querySelector('.loading').style.display = 'none';
+                    document.querySelector('.result').style.display = 'block';
+                } else {
+                    alert("获取价格失败，稍后重试！");
+                }
+            } catch (error) {
+                console.error("发生错误: ", error);
+            }
+        }
+
+        // 每分钟更新一次市场状态
+        setInterval(updateMarketStatus, 60000);
+        updateMarketStatus(); // 首次加载时立即执行一次
+    </script>
+</body>
+</html>
