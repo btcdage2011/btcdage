@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>₿囤饼指南₿</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+    }
+    header {
+      background-color: #333;
+      color: #fff;
+      padding: 20px;
+      text-align: center;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 2.5em;
+    }
+    header p {
+      font-size: 1.2em;
+      margin: 5px 0;
+    }
+    .banner {
+      position: relative;
+      text-align: center;
+      color: white;
+    }
+    .banner img {
+      width: 100%;
+      height: auto;
+    }
+    .banner .overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 20px;
+      border-radius: 10px;
+    }
+    .banner .overlay h2 {
+      margin: 0;
+      font-size: 2em;
+    }
+    nav {
+        text-align: center;
+        background-color: #f8f9fa;
+        padding: 10px 0;
+        border-bottom: 1px solid #ddd;
+    }
+    nav a {
+        text-decoration: none;
+        color: #007BFF;
+        font-size: 16px;
+        margin: 0 15px;
+    }
+    nav a:hover {
+        text-decoration: underline;
+    }
+    #pdf-container {
+        width: 100%;
+        height: calc(100vh - 50px); /* 剩余高度 */
+        border: none;
+    }
+    table {
+      width: 80%;
+      margin: 0 auto;
+      border-collapse: collapse;
+      text-align: center;
+    }
+    table td {
+      padding: 15px;
+      border: 1px solid #ddd;
+      background-color: #fafafa;
+    }
+    table a {
+      text-decoration: none;
+      color: #333;
+      font-size: 1.1em;
+    }
+    table a:hover {
+      color: #007bff;
+    }
+    footer {
+      text-align: center;
+      padding: 10px;
+      background-color: #333;
+      color: #fff;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航栏 -->
+  <div id="navbar"></div>
+
+<header>
+  <h1>₿达哥囤饼指南₿</h1>
+  <p>探索比特币的奥秘，遵循囤币之道</p>
+</header>
+
+<div class="banner">
+  <img src="btcdage.png" alt="比特币主题横幅">
+  <div class="overlay">
+    <h2>₿ 开启你的囤币旅程 ₿</h2>
+  </div>
+</div>
+
+
+<footer>
+  <p>&copy; 2024 ₿囤饼指南₿ - 探索比特币未来</p>
+</footer>
+<!-- 动态加载导航栏 -->
+<script>
+    fetch('nav.html')
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('navbar').innerHTML = data;
+        })
+        .catch(error => console.error('Error loading navigation:', error));
+</script>
+</body>
+</html>
