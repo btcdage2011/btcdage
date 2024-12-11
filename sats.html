@@ -46,14 +46,9 @@
     </style>
 </head>
 <body>
-  <nav>
-      <a href="dgzs.html">达哥指数历史曲线（每日更新）</a>
-      <a href="sats.html">₿₿₿聪之道₿₿₿</a>
-      <a href="ssdgzs.html">实时达哥指数(需要魔法)</a>
-      <a href="https://pan.baidu.com/share/init?surl=mStbBH-6qp3wMh7fk8oTPQ&pwd=hjzt" target="_blank">软件下载</a>
-      <a href="https://weibo.com/u/7747014561" target="_blank">达哥微博</a>
-      <a href="https://startbitcoin.org/" target="_blank">比特币布道者网站</a>
-  </nav>
+
+<div id="navbar"></div>
+
     <h1>₿₿₿聪之道₿₿₿</h1>
     <div id="real-time-data">加载中...</div>
     <div id="controls">
@@ -75,6 +70,13 @@
     </div>
     <script>
         let chart;
+            // 动态加载导航栏
+        fetch('nav.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('navbar').innerHTML = data;
+            })
+            .catch(error => console.error('Error loading navigation:', error));
 
         // 设置默认日期
         function setDefaultDates() {
