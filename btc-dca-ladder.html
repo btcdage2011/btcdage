@@ -4,26 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>金字塔定投计算器 | Pyramid Investment Calculator</title>
+    <script src="config.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
         }
         nav {
-            text-align: center; /* 导航栏居中 */
-            margin-bottom: 20px; /* 与内容的间距 */
+            text-align: center;
+            margin-bottom: 20px;
         }
         nav a {
-            text-decoration: none; /* 去掉下划线 */
-            color: #007BFF; /* 超链接颜色 */
+            text-decoration: none;
+            color: #007BFF;
             font-size: 16px;
-            margin: 0 15px; /* 每个链接之间的间距 */
+            margin: 0 15px;
         }
         nav a:hover {
-            text-decoration: underline; /* 鼠标悬停时显示下划线 */
+            text-decoration: underline;
         }
         h1 {
-            text-align: center; /* 标题居中 */
+            text-align: center;
             margin-bottom: 10px;
         }
         table {
@@ -42,22 +43,18 @@
             margin-bottom: 20px;
             font-size: 1.1em;
         }
-        .lang {
-            font-size: 0.9em;
-            color: #555;
-        }
     </style>
 </head>
 <body>
-  <div id="navbar"></div>
+    <div id="navbar"></div>
     <h1>₿金字塔定投计算器₿ | ₿Pyramid Investment Calculator₿</h1>
 
     <div class="info">
-        <p><strong>预设历史最高价 (Preset Highest Price):</strong> <span id="presetPrice">106648</span> USD</p>
+        <p><strong>预设历史最高价 (Preset Highest Price):</strong> <span id="presetPrice">Loading...</span> USD</p>
         <p><strong>当前实时价格 (Current Real-Time Price):</strong> <span id="currentPrice">Loading...</span> USD</p>
         <p><strong>计算使用的最高价格 (Used Highest Price for Calculation):</strong> <span id="highestPrice">Loading...</span> USD</p>
         <p>注释：每份定投金额默认为 100 美元，可按实际情况自行调整。<br>
-   Note: The default investment amount for each level is 100 USD. You can adjust it according to your financial situation.</p>
+           Note: The default investment amount for each level is 100 USD. You can adjust it according to your financial situation.</p>
     </div>
 
     <table id="resultTable">
@@ -73,16 +70,13 @@
     </table>
 
     <script>
-            // 动态加载导航栏
+        // 动态加载导航栏
         fetch('nav.html')
             .then(response => response.text())
             .then(data => {
                 document.getElementById('navbar').innerHTML = data;
             })
             .catch(error => console.error('Error loading navigation:', error));
-
-        // 预设历史最高价
-        const presetHighestPrice = 106648;
 
         // 每次跌幅 (10%)
         const dropPercentage = 0.10;
@@ -130,7 +124,8 @@
 
         async function init() {
             // 更新预设价格
-            document.getElementById("presetPrice").textContent = presetHighestPrice.toFixed(2);
+            document.getElementById("presetPrice").textContent = CONFIG.PRESET_HIGHEST_PRICE.toFixed(2);
+            const presetHighestPrice = CONFIG.PRESET_HIGHEST_PRICE;
 
             // 获取当前实时价格
             const currentPrice = await fetchCurrentPrice();
