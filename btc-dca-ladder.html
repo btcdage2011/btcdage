@@ -63,7 +63,9 @@
                 <th>阶梯 (Level)</th>
                 <th>价格 (Price)</th>
                 <th>投资金额 (Investment Amount)</th>
+                <th>买入币量 (Purchased Amount)</th>
                 <th>累计投资总额 (Total Investment)</th>
+                <th>累计币量 (Total Purchased)</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -103,10 +105,13 @@
             let currentPrice = highestPrice;
             let totalInvestment = 0;
             let investmentAmount = initialAmount;
+            let totalPurchased = 0;
 
             for (let i = 1; i <= 10; i++) { // 最多显示10阶梯
                 currentPrice = highestPrice * Math.pow(1 - dropPercentage, i); // 价格递减
                 totalInvestment += investmentAmount; // 累计投资总额
+                const purchasedAmount = investmentAmount / currentPrice; // 计算买到的币量
+                totalPurchased += purchasedAmount; // 累计买到的币量
 
                 // 添加到表格
                 const row = document.createElement("tr");
@@ -114,7 +119,9 @@
                     <td>${i}</td>
                     <td>${currentPrice.toFixed(2)} USD</td>
                     <td>${investmentAmount.toFixed(2)} USD</td>
+                    <td>${purchasedAmount.toFixed(6)} BTC</td>
                     <td>${totalInvestment.toFixed(2)} USD</td>
+                    <td>${totalPurchased.toFixed(6)} BTC</td>
                 `;
                 resultTableBody.appendChild(row);
 
