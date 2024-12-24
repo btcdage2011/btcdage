@@ -128,11 +128,17 @@
         const tokenDecimals = 18;
         const maxMintPerAccount = 1224;
 
+        // Load network from localStorage
+        const storedNetwork = localStorage.getItem('selectedNetwork');
+        if (storedNetwork) {
+            networkSelect.value = storedNetwork;
+        }
 
         networkSelect.addEventListener('change', async () => {
             currentProvider = null;
             contract = null;
             statusDiv.textContent = '';
+            localStorage.setItem('selectedNetwork', networkSelect.value);
             await checkNetworkAndConnect();
             await updateUI();
         });
@@ -193,7 +199,7 @@
                     mintButton.disabled = false;
                     mintButton.textContent = "Mint 1224 STAR19";
                     mintedMsgDiv.style.display = "none";
-                     await updateUI();
+                    await updateUI();
 
                 } catch (error) {
                     statusDiv.textContent = 'Wallet Connect Failed: ' + error.message;
@@ -316,7 +322,7 @@
                 return "0";
             }
         }
-        (async function() {
+         (async function checkNetworkAndConnectWrapper() {
             await checkNetworkAndConnect();
         })();
         networkInfoDiv.style.display = "none";
