@@ -141,25 +141,60 @@
         connectWalletButton.addEventListener('click', async () => {
             await checkNetworkAndConnect();
         });
-         async function checkNetworkAndConnect() {
-          if (typeof window.ethereum !== 'undefined') {
-             console.log(window.ethereum);
+        async function checkNetworkAndConnect() {
+            if (typeof window.ethereum !== 'undefined') {
                 try {
                     loadingDiv.style.display = 'block';
                     currentProvider = new ethers.providers.Web3Provider(window.ethereum);
                     await window.ethereum.request({ method: 'eth_requestAccounts' });
                     currentAccount = await currentProvider.getSigner().getAddress();
-                     const currentChainId = await window.ethereum.request({method:'eth_chainId'});
-                     const currentNetworkId = parseInt(currentChainId,16);
-                     const selectedNetwork = networkSelect.value;
+                    const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    const currentNetworkId = parseInt(currentChainId, 16);
+                    const selectedNetwork = networkSelect.value;
                     const targetChainId = contractAddresses[selectedNetwork].chainId;
-                      currentNetworkIdSpan.textContent = currentNetworkId;
-                       currentNetworkNameSpan.textContent = contractAddresses[selectedNetwork].networkName;
+                    currentNetworkIdSpan.textContent = currentNetworkId;
+                    currentNetworkNameSpan.textContent = contractAddresses[selectedNetwork].networkName;
+                    if (currentNetworkId !== targetChainId) {
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_switchEthereumChain',
+                                params: [{ chainId: ethers.utils.hexValue(targetChainId) }],
+                            });
+                            statusDiv.textContent = "Network Changed!";
+                        } catch (switchError) {
+                            if (switchError.code === 4902) {
+                                try {
+                                    await window.ethereum.request({
+                                        method: 'wallet_addEthereumChain',
+                                        params: [
+                                            {
+                                                chainId: ethers.utils.hexValue(targetChainId),
+                                                chainName: contractAddresses[selectedNetwork].networkName,
+                                                nativeCurrency: {
+                                                    name: contractAddresses[selectedNetwork].networkName,
+                                                    symbol: contractAddresses[selectedNetwork].networkName, // 可根据实际情况修改
+                                                    decimals: 18
+                                                },
+                                                rpcUrls: [`https://${contractAddresses[selectedNetwork].networkName}.rpc.thirdweb.com`], // 可根据实际情况修改
+                                                blockExplorerUrls: [`https://${contractAddresses[selectedNetwork].networkName}.etherscan.io/`] // 可根据实际情况修改
+                                            }
+                                        ],
+                                    });
+                                    statusDiv.textContent = "Network Added and Changed!"
+                                } catch (addError) {
+                                    statusDiv.textContent = 'Failed to add network: ' + addError.message;
+                                }
+                            } else {
+                                statusDiv.textContent = 'Failed to change network: ' + switchError.message;
+                            }
+                        }
+                    }
                     statusDiv.textContent = 'Wallet Connected';
                     mintButton.disabled = false;
                     mintButton.textContent = "Mint 1224 STAR19";
                     mintedMsgDiv.style.display = "none";
                      await updateUI();
+
                 } catch (error) {
                     statusDiv.textContent = 'Wallet Connect Failed: ' + error.message;
                     mintButton.disabled = true;
@@ -172,10 +207,13 @@
             } else {
                 statusDiv.textContent = 'MetaMask not found';
                 mintButton.disabled = true;
-                mintButton.textContent = "Mint 1224 STAR19";
-                 mintedMsgDiv.style.display = "none";
+                mintButton.textContent = "Mint 1224 STAR19"
+                mintedMsgDiv.style.display = "none";
             }
         }
+        (async function checkNetworkAndConnectWrapper() {
+            await checkNetworkAndConnect();
+        })();
 
 
         mintButton.addEventListener('click', async () => {
@@ -278,7 +316,9 @@
                 return "0";
             }
         }
+        (async function() {
             await checkNetworkAndConnect();
+        })();
         networkInfoDiv.style.display = "none";
     </script>
 </body>
