@@ -56,9 +56,9 @@
         }
 
         .minted-msg {
-              margin-top:10px;
+            margin-top: 10px;
             font-style: italic;
-             color: green;
+            color: green;
         }
     </style>
 </head>
@@ -73,23 +73,23 @@
         <option value="MATIC">MATIC</option>
         <option value="BSC">BSC</option>
     </select>
-
+       <p><strong>Current Network:</strong> <span id="currentNetworkName"></span> (ID: <span id="currentNetworkId"></span>)</p>
     <button id="connectWallet">Connect Wallet</button>
     <div id="status"></div>
     <div id="networkInfo" class="network-info" style="display: none;">
-        <p><strong>Current Network:</strong> <span id="networkName"></span></p>
         <p><strong>Contract Address:</strong> <span id="contractAddress"></span></p>
         <p><strong>Total Minted:</strong> <span id="totalMinted"></span></p>
         <p><strong>Remaining Mintable:</strong> <span id="remainingMintable"></span></p>
         <p><strong>Number of Holders:</strong> <span id="numHolders"></span></p>
     </div>
     <button id="mintButton" disabled>Mint 1224 STAR19</button>
-     <div id="mintedMsg" class="minted-msg" style="display: none;">You have already minted 1224 STAR19!</div>
+    <div id="mintedMsg" class="minted-msg" style="display: none;">You have already minted 1224 STAR19!</div>
     <script>
         const networkSelect = document.getElementById('networkSelect');
         const connectWalletButton = document.getElementById('connectWallet');
         const statusDiv = document.getElementById('status');
-        const networkNameSpan = document.getElementById('networkName');
+        const currentNetworkNameSpan = document.getElementById('currentNetworkName');
+        const currentNetworkIdSpan = document.getElementById('currentNetworkId');
         const contractAddressSpan = document.getElementById('contractAddress');
         const totalMintedSpan = document.getElementById('totalMinted');
         const remainingMintableSpan = document.getElementById('remainingMintable');
@@ -97,13 +97,29 @@
         const mintButton = document.getElementById('mintButton');
         const networkInfoDiv = document.getElementById('networkInfo');
         const loadingDiv = document.getElementById('loading');
-         const mintedMsgDiv = document.getElementById('mintedMsg');
+        const mintedMsgDiv = document.getElementById('mintedMsg');
 
         const contractAddresses = {
-            Fantom: "0xF8356dc643Fb8A7F5D6936DDFDD3c275Bcd9986a",
-            OKT: "0x14Ee879DaD2651bB72b1FF4B726D358D3a6C25cC",
-            MATIC: "0x6e108Ae38bCA1b3C3466e1e99d414CF08BA26b24",
-            BSC: "0x51842dB4c3ae18718FE16B08dF12c29a343427A7"
+            Fantom: {
+                address: "0xF8356dc643Fb8A7F5D6936DDFDD3c275Bcd9986a",
+                chainId: 250,
+                networkName: "Fantom"
+            },
+            OKT: {
+                address: "0x14Ee879DaD2651bB72b1FF4B726D358D3a6C25cC",
+                chainId: 66,
+                networkName: "OKT"
+            },
+            MATIC: {
+                address: "0x6e108Ae38bCA1b3C3466e1e99d414CF08BA26b24",
+                chainId: 137,
+                 networkName: "MATIC"
+            },
+            BSC: {
+                address: "0x51842dB4c3ae18718FE16B08dF12c29a343427A7",
+                chainId: 56,
+                 networkName: "BSC"
+            }
         };
 
         let currentProvider = null;
@@ -112,39 +128,95 @@
         const tokenDecimals = 18;
         const maxMintPerAccount = 1224;
 
+
         networkSelect.addEventListener('change', async () => {
+            currentProvider = null;
+            contract = null;
+            statusDiv.textContent = '';
+             await checkNetworkAndConnect();
             await updateUI();
         });
 
+
+
         connectWalletButton.addEventListener('click', async () => {
-            if (typeof window.ethereum !== 'undefined') { // 确保 window.ethereum 存在
-                try {
+             await checkNetworkAndConnect();
+        });
+
+    async function checkNetworkAndConnect() {
+          if (typeof window.ethereum !== 'undefined') {
+           try {
                     loadingDiv.style.display = 'block';
                     currentProvider = new ethers.providers.Web3Provider(window.ethereum);
-                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                     const currentChainId = await window.ethereum.request({method:'eth_chainId'});
+                     const currentNetworkId = parseInt(currentChainId,16);
+                     const selectedNetwork = networkSelect.value;
+                    const targetChainId = contractAddresses[selectedNetwork].chainId;
+                      currentNetworkIdSpan.textContent = currentNetworkId;
+                       currentNetworkNameSpan.textContent = contractAddresses[selectedNetwork].networkName;
+
+                    if(currentNetworkId !== targetChainId){
+                        try {
+                                    await window.ethereum.request({
+                                            method: 'wallet_switchEthereumChain',
+                                            params: [{ chainId:  ethers.utils.hexValue(targetChainId)}],
+                                    });
+                                    statusDiv.textContent = "Network Changed!";
+                        } catch (switchError) {
+                                 if (switchError.code === 4902) {
+                                        try {
+                                             await window.ethereum.request({
+                                                    method: 'wallet_addEthereumChain',
+                                                    params: [
+                                                        {
+                                                            chainId: ethers.utils.hexValue(targetChainId),
+                                                            chainName:  contractAddresses[selectedNetwork].networkName,
+                                                            nativeCurrency: {
+                                                                    name: contractAddresses[selectedNetwork].networkName,
+                                                                    symbol: contractAddresses[selectedNetwork].networkName, // 可根据实际情况修改
+                                                                    decimals: 18
+                                                            },
+                                                          rpcUrls: [`https://${contractAddresses[selectedNetwork].networkName}.rpc.thirdweb.com`], // 可根据实际情况修改
+                                                         blockExplorerUrls: [`https://${contractAddresses[selectedNetwork].networkName}.etherscan.io/`] // 可根据实际情况修改
+                                                            }
+                                                    ],
+                                                 });
+                                               statusDiv.textContent = "Network Added and Changed!"
+                                            } catch (addError) {
+                                                statusDiv.textContent = 'Failed to add network: ' + addError.message;
+                                            }
+                                  } else {
+                                    statusDiv.textContent = 'Failed to change network: ' + switchError.message;
+                                   }
+                                 }
+                                   }
+
+
+                     await window.ethereum.request({ method: 'eth_requestAccounts' });
                     currentAccount = await currentProvider.getSigner().getAddress();
+
                     statusDiv.textContent = 'Wallet Connected';
                     mintButton.disabled = false;
-                    mintButton.textContent = "Mint 1224 STAR19"
-                     mintedMsgDiv.style.display = "none";
-                    await updateUI();
-                } catch (error) {
+                    mintButton.textContent = "Mint 1224 STAR19";
+                    mintedMsgDiv.style.display = "none";
+                     await updateUI();
+
+            } catch (error) {
                     statusDiv.textContent = 'Wallet Connect Failed: ' + error.message;
                     mintButton.disabled = true;
-                    mintButton.textContent = "Mint 1224 STAR19"
-                     mintedMsgDiv.style.display = "none";
+                    mintButton.textContent = "Mint 1224 STAR19";
+                    mintedMsgDiv.style.display = "none";
                     console.error("Error connecting:", error);
-                } finally {
+            } finally {
                     loadingDiv.style.display = 'none';
                 }
-            } else {
+          } else {
                 statusDiv.textContent = 'MetaMask not found';
                 mintButton.disabled = true;
                 mintButton.textContent = "Mint 1224 STAR19"
-                mintedMsgDiv.style.display = "none";
-
+               mintedMsgDiv.style.display = "none";
             }
-        });
+    }
 
         mintButton.addEventListener('click', async () => {
             if (currentProvider && contract) {
@@ -158,7 +230,7 @@
                     statusDiv.textContent = 'Minted successfully!';
                     mintButton.disabled = true;
                     mintButton.textContent = "Minted";
-                     mintedMsgDiv.style.display = "block";
+                    mintedMsgDiv.style.display = "block";
                     await updateUI();
                 } catch (error) {
                     statusDiv.textContent = 'Minting Failed: ' + error.message;
@@ -173,9 +245,8 @@
 
         async function updateUI() {
             const selectedNetwork = networkSelect.value;
-            const contractAddress = contractAddresses[selectedNetwork];
-            networkNameSpan.textContent = selectedNetwork;
-            contractAddressSpan.textContent = contractAddress;
+            const contractAddress = contractAddresses[selectedNetwork].address;
+             contractAddressSpan.textContent = contractAddress;
             networkInfoDiv.style.display = "block";
 
             if (currentProvider && contractAddress) {
@@ -204,8 +275,8 @@
                             mintButton.disabled = true;
                             mintButton.textContent = "Minted";
                             mintedMsgDiv.style.display = "block";
-                        }else{
-                             mintedMsgDiv.style.display = "none";
+                        } else {
+                            mintedMsgDiv.style.display = "none";
                         }
                     }
                 } catch (error) {
@@ -221,7 +292,7 @@
 
         async function getHoldersCount() {
             const selectedNetwork = networkSelect.value;
-            const contractAddress = contractAddresses[selectedNetwork];
+            const contractAddress = contractAddresses[selectedNetwork].address;
             if (!currentProvider || !contractAddress) {
                 return "0";
             }
@@ -247,6 +318,7 @@
                 return "0";
             }
         }
+           await checkNetworkAndConnect();
         networkInfoDiv.style.display = "none";
     </script>
 </body>
