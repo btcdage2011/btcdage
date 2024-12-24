@@ -73,7 +73,7 @@
     <div id="loading" style="display: none;">Loading...</div>
     <p><strong>Current Network:</strong> <span id="currentNetworkName"></span> (ID: <span id="currentNetworkId"></span>)</p>
     <p><strong>Wallet Address:</strong> <span id="walletAddress"></span></p>
-     <p><strong>My Balance:</strong> <span id="myBalance"></span></p>
+    <p><strong>My Balance:</strong> <span id="myBalance"></span></p>
     <button id="connectWallet">Connect Wallet</button>
     <div id="status"></div>
     <div id="networkInfo" class="network-info" style="display: none;">
@@ -99,228 +99,239 @@
         const mintButton = document.getElementById('mintButton');
         const networkInfoDiv = document.getElementById('networkInfo');
         const loadingDiv = document.getElementById('loading');
-       const mintedMsgDiv = document.getElementById('mintedMsg');
+          const mintedMsgDiv = document.getElementById('mintedMsg');
         const mintedMsgErrorDiv = document.getElementById('mintedMsgError');
 
-
-       const contractAddress = "0x14Ee879DaD2651bB72b1FF4B726D358D3a6C25cC";
+         const contractAddress = "0x14Ee879DaD2651bB72b1FF4B726D358D3a6C25cC";
         const chainId = 66;
-        const networkName = "OKT";
+         const networkName = "OKT";
         let currentProvider = null;
         let contract = null;
-        let currentAccount = null;
+       let currentAccount = null;
         const tokenDecimals = 18;
         const maxMintPerAccount = 1224;
-         const defaultBlockHeight = 2322600;
+       const defaultBlockHeight = 2322600;
 
 
-       connectWalletButton.addEventListener('click', async () => {
-           await checkNetworkAndConnect();
+        connectWalletButton.addEventListener('click', async () => {
+            await checkNetworkAndConnect();
         });
-       async function checkNetworkAndConnect() {
-            if (typeof window.ethereum !== 'undefined') {
-               try {
-                  loadingDiv.style.display = 'block';
-                     currentProvider = new ethers.providers.Web3Provider(window.ethereum);
-                      await new Promise(resolve => setTimeout(resolve, 1000));
+         async function checkNetworkAndConnect() {
+             if (typeof window.ethereum !== 'undefined') {
+                 try {
+                      loadingDiv.style.display = 'block';
+                      currentProvider = new ethers.providers.Web3Provider(window.ethereum);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
 
-                    await window.ethereum.request({ method: 'eth_requestAccounts' });
-                   currentAccount = await currentProvider.getSigner().getAddress();
-                     walletAddressSpan.textContent = currentAccount;
-                    const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+                     await window.ethereum.request({ method: 'eth_requestAccounts' });
+                     currentAccount = await currentProvider.getSigner().getAddress();
+                      walletAddressSpan.textContent = currentAccount;
+                     const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
                     const currentNetworkId = parseInt(currentChainId, 16);
                      currentNetworkIdSpan.textContent = currentNetworkId;
-                     currentNetworkNameSpan.textContent = networkName;
+                    currentNetworkNameSpan.textContent = networkName;
                       if (currentNetworkId !== chainId) {
-                            try {
+                           try {
                                  await window.ethereum.request({
-                                      method: 'wallet_switchEthereumChain',
+                                    method: 'wallet_switchEthereumChain',
                                      params: [{ chainId: ethers.utils.hexValue(chainId) }],
-                                });
+                               });
                                 statusDiv.textContent = "Network Changed!";
                             } catch (switchError) {
                               if (switchError.code === 4902) {
                                   try {
                                       await window.ethereum.request({
-                                        method: 'wallet_addEthereumChain',
+                                         method: 'wallet_addEthereumChain',
                                           params: [
-                                            {
-                                                chainId: ethers.utils.hexValue(chainId),
-                                                 chainName: networkName,
+                                             {
+                                                  chainId: ethers.utils.hexValue(chainId),
+                                                  chainName: networkName,
                                                  nativeCurrency: {
-                                                      name: networkName,
-                                                      symbol: networkName,
-                                                      decimals: 18
-                                                  },
-                                                  rpcUrls: [`https://${networkName}.rpc.thirdweb.com`],
-                                                  blockExplorerUrls: [`https://${networkName}.etherscan.io/`]
-                                             }
-                                          ],
-                                     });
-                                    statusDiv.textContent = "Network Added and Changed!"
-                                   } catch (addError) {
-                                       statusDiv.textContent = 'Failed to add network: ' + addError.message;
+                                                    name: networkName,
+                                                   symbol: networkName,
+                                                    decimals: 18
+                                                 },
+                                                   rpcUrls: [`https://${networkName}.rpc.thirdweb.com`],
+                                                   blockExplorerUrls: [`https://${networkName}.etherscan.io/`]
+                                              }
+                                           ],
+                                       });
+                                        statusDiv.textContent = "Network Added and Changed!"
+                                  } catch (addError) {
+                                        statusDiv.textContent = 'Failed to add network: ' + addError.message;
                                    }
-                             } else {
+                            } else {
                                 statusDiv.textContent = 'Failed to change network: ' + switchError.message;
                             }
-                     }
-
-
+                       }
                    statusDiv.textContent = 'Wallet Connected';
                    mintButton.disabled = false;
-                   mintButton.textContent = "Mint 1224 STAR19";
+                  mintButton.textContent = "Mint 1224 STAR19";
                    mintedMsgDiv.style.display = "none";
                    mintedMsgErrorDiv.style.display = "none";
-                    await updateUI();
-                } catch (error) {
-                      statusDiv.textContent = 'Wallet Connect Failed: ' + error.message;
+                  await updateUI();
+
+                 } catch (error) {
+                    statusDiv.textContent = 'Wallet Connect Failed: ' + error.message;
                      mintButton.disabled = true;
-                    mintButton.textContent = "Mint 1224 STAR19";
-                     mintedMsgDiv.style.display = "none";
-                     mintedMsgErrorDiv.style.display = "none";
+                   mintButton.textContent = "Mint 1224 STAR19";
+                    mintedMsgDiv.style.display = "none";
+                   mintedMsgErrorDiv.style.display = "none";
                    console.error("Error connecting:", error);
-                } finally {
-                      loadingDiv.style.display = 'none';
-                }
+                 } finally{
+                   loadingDiv.style.display = 'none';
+                   }
+
             } else {
-               statusDiv.textContent = 'MetaMask not found';
+                statusDiv.textContent = 'MetaMask not found';
                  mintButton.disabled = true;
-                  mintButton.textContent = "Mint 1224 STAR19"
-                mintedMsgDiv.style.display = "none";
-                mintedMsgErrorDiv.style.display = "none";
-           }
+                 mintButton.textContent = "Mint 1224 STAR19"
+                 mintedMsgDiv.style.display = "none";
+                 mintedMsgErrorDiv.style.display = "none";
+            }
         }
-          (async function checkNetworkAndConnectWrapper() {
+        (async function checkNetworkAndConnectWrapper() {
            await checkNetworkAndConnect();
         })();
 
-           window.ethereum.on('chainChanged', async() => {
-            currentProvider = null;
-             contract = null;
+         window.ethereum.on('chainChanged', async() => {
+             currentProvider = null;
+           contract = null;
            statusDiv.textContent = 'Network Changed, Please Reconnect...';
-             networkInfoDiv.style.display = "none";
-              walletAddressSpan.textContent = "";
-            myBalanceSpan.textContent = "";
-            await checkNetworkAndConnect();
-           await updateUI();
-      });
-
+           networkInfoDiv.style.display = "none";
+          walletAddressSpan.textContent = "";
+         myBalanceSpan.textContent = "";
+           await checkNetworkAndConnect();
+            await updateUI();
+       });
 
 
         mintButton.addEventListener('click', async () => {
            if (currentProvider && contract && currentAccount) {
-               try {
-                   mintButton.disabled = true;
-                    mintButton.textContent = "Minting..."
-                   statusDiv.textContent = "Minting...Please wait!"
-                    const mintAmount = ethers.utils.parseUnits(maxMintPerAccount.toString(), tokenDecimals);
-
-
-                  try {
-                       const staticCall = await contract.connect(currentProvider.getSigner()).callStatic['mint(uint256)'](mintAmount);
-                        console.log("staticCall:",staticCall)
-                      } catch (staticError) {
-                           console.error("staticCall error:", staticError);
-                      }
-
-                     const tx = await contract.connect(currentProvider.getSigner()).estimateGas['mint(uint256)'](mintAmount);
-                    console.log("estimateGas request:", tx)
-                   const txResponse = await contract.connect(currentProvider.getSigner())['mint(uint256)'](mintAmount);
-                   await txResponse.wait();
-                   statusDiv.textContent = 'Minted successfully!';
+                try {
                     mintButton.disabled = true;
-                   mintButton.textContent = "Minted";
+                   mintButton.textContent = "Minting..."
+                   statusDiv.textContent = "Minting...Please wait!"
+                   const mintAmount = ethers.utils.parseUnits(maxMintPerAccount.toString(), tokenDecimals);
+
+
+                    const iface = new ethers.utils.Interface([
+                      "function mint(uint256)"
+                  ]);
+
+                    const data = iface.encodeFunctionData('mint', [mintAmount]);
+                     const tx = {
+                          to: contractAddress,
+                            data: data,
+                        };
+                    console.log("sendTransaction:",tx);
+                   const txResponse = await currentProvider.getSigner().sendTransaction(tx);
+                   console.log("txResponse:",txResponse)
+
+                   const parsed = ethers.utils.parseTransaction(txResponse)
+                   console.log("parsed:",parsed)
+
+                   await txResponse.wait();
+
+                  statusDiv.textContent = 'Minted successfully!';
+                   mintButton.disabled = true;
+                    mintButton.textContent = "Minted";
                    mintedMsgDiv.style.display = "block";
                     await updateUI();
-               } catch (error) {
-                   statusDiv.textContent = 'Minting Failed: ' + error.message;
-                    mintButton.disabled = false;
-                   mintButton.textContent = "Mint 1224 STAR19"
-                  console.error("Minting failed:", error);
-               }
-         } else {
-              statusDiv.textContent = 'Connect wallet first';
-         }
-      });
+                } catch (error) {
+                     statusDiv.textContent = 'Minting Failed: ' + error.message;
+                   mintButton.disabled = false;
+                    mintButton.textContent = "Mint 1224 STAR19"
+                   console.error("Minting failed:", error);
+                }
+          } else {
+                statusDiv.textContent = 'Connect wallet first';
+           }
+       });
 
-         async function updateUI() {
-          contractAddressSpan.textContent = contractAddress;
+      async function updateUI() {
+           contractAddressSpan.textContent = contractAddress;
             networkInfoDiv.style.display = "block";
-            if (currentProvider) {
-              try {
-                    loadingDiv.style.display = 'block';
+
+
+           if (currentProvider ) {
+               try {
+                      loadingDiv.style.display = 'block';
                    contract = new ethers.Contract(contractAddress,
                         [
                             "function totalSupply() view returns (uint256)",
-                            "function balanceOf(address) view returns (uint256)",
+                           "function balanceOf(address) view returns (uint256)",
                             "function mint(uint256)",
-                           "function hasMinted(address) view returns(bool)"
-                       ],
-                       currentProvider);
-                    const totalSup = await contract.totalSupply();
-                   const totalMinted = ethers.utils.formatUnits(totalSup, tokenDecimals);
-                     const cap = 23256000;
-                   const remainingMintable = (cap - parseFloat(totalMinted)).toLocaleString();
-                    const holdersCount = await getHoldersCount();
-                    totalMintedSpan.textContent = parseFloat(totalMinted).toLocaleString();
-                  remainingMintableSpan.textContent = remainingMintable;
-                    numHoldersSpan.textContent = holdersCount.toLocaleString();
+                            "function hasMinted(address) view returns(bool)"
+                         ],
+                        currentProvider);
 
+                      const totalSup = await contract.totalSupply();
+                    const totalMinted = ethers.utils.formatUnits(totalSup, tokenDecimals);
+                    const cap = 23256000;
+                    const remainingMintable = (cap - parseFloat(totalMinted)).toLocaleString();
+                   const holdersCount = await getHoldersCount();
+                    totalMintedSpan.textContent = parseFloat(totalMinted).toLocaleString();
+                   remainingMintableSpan.textContent = remainingMintable;
+                     numHoldersSpan.textContent = holdersCount.toLocaleString();
                     if(currentAccount){
-                         const myBalance = await contract.balanceOf(currentAccount);
-                           myBalanceSpan.textContent = ethers.utils.formatUnits(myBalance, tokenDecimals);
-                            const hasMinted = await contract.hasMinted(currentAccount);
-                          if (hasMinted) {
+                           const myBalance = await contract.balanceOf(currentAccount);
+                             myBalanceSpan.textContent = ethers.utils.formatUnits(myBalance, tokenDecimals);
+                           const hasMinted = await contract.hasMinted(currentAccount);
+                            if (hasMinted) {
                                  mintButton.disabled = true;
-                                   mintButton.textContent = "Minted";
-                                  mintedMsgDiv.style.display = "block";
-                                 mintedMsgErrorDiv.style.display = "none";
+                                 mintButton.textContent = "Minted";
+                                 mintedMsgDiv.style.display = "block";
+                                   mintedMsgErrorDiv.style.display = "none";
                            } else {
-                                mintedMsgDiv.style.display = "none";
-                                 mintedMsgErrorDiv.style.display = "none";
+                                  mintedMsgDiv.style.display = "none";
+                                   mintedMsgErrorDiv.style.display = "none";
                            }
-                    }
-             } catch (error) {
-                   statusDiv.textContent = "Error fetching data: " + error.message;
-                   console.error("Error fetching data", error);
+                     }
+
+
+
+                }  catch (error) {
+                    statusDiv.textContent = "Error fetching data: " + error.message;
+                    console.error("Error fetching data", error);
                      networkInfoDiv.style.display = "none";
-                    totalMintedSpan.textContent = "0";
-                     remainingMintableSpan.textContent = "0";
-                      numHoldersSpan.textContent = "0";
-                      myBalanceSpan.textContent ="0";
-             }  finally {
-                   loadingDiv.style.display = 'none';
+                     totalMintedSpan.textContent = "0";
+                    remainingMintableSpan.textContent = "0";
+                    numHoldersSpan.textContent = "0";
+                   myBalanceSpan.textContent ="0";
+                }  finally {
+                    loadingDiv.style.display = 'none';
                }
            } else {
-              statusDiv.textContent = "Connect wallet first";
-          }
+                statusDiv.textContent = "Connect wallet first";
+           }
        }
-     async function getHoldersCount() {
-         if(!currentProvider || !contractAddress){
-                return "0";
+
+      async function getHoldersCount() {
+           if(!currentProvider || !contractAddress){
+                 return "0";
             }
            const contract = new ethers.Contract(contractAddress,
-               [
-                  "event Transfer(address indexed from, address indexed to, uint256 value)"
+              [
+                    "event Transfer(address indexed from, address indexed to, uint256 value)"
               ],
-                currentProvider);
-            try {
+              currentProvider);
+           try {
                const currentBlock = await currentProvider.getBlockNumber();
-                 const fromBlock = currentBlock > defaultBlockHeight ? currentBlock - 1000 : defaultBlockHeight;
-                const transferEvents = await contract.queryFilter("Transfer", fromBlock, "latest");
-                 const holderAddresses = new Set();
-                 for (const event of transferEvents) {
-                   if (event.args.to !== "0x0000000000000000000000000000000000000000") {
-                       holderAddresses.add(event.args.to);
-                   }
-                  if (event.args.from !== "0x0000000000000000000000000000000000000000") {
-                       holderAddresses.add(event.args.from);
-                  }
-              }
-               return holderAddresses.size;
-            } catch (error) {
-                console.error("Error getting holder count", error);
+                const fromBlock = currentBlock > defaultBlockHeight ? currentBlock - 1000 : defaultBlockHeight;
+              const transferEvents = await contract.queryFilter("Transfer",fromBlock, "latest");
+                  const holderAddresses = new Set();
+               for (const event of transferEvents) {
+                  if (event.args.to !== "0x0000000000000000000000000000000000000000") {
+                        holderAddresses.add(event.args.to);
+                     }
+                      if (event.args.from !== "0x0000000000000000000000000000000000000000") {
+                          holderAddresses.add(event.args.from);
+                      }
+               }
+                return holderAddresses.size;
+           } catch (error) {
+                 console.error("Error getting holder count", error);
                return "0";
            }
        }
