@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlight19 Token Info</title>
+     <script src="ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: red;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:disabled {
+             background-color: #cccccc;
+            color: #666666;
+            cursor: not-allowed;
+        }
+
+        #loading {
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        .network-info p {
+           margin-bottom:5px
+         }
+
+         #mintButton {
+            display: block;
+            width: fit-content;
+            margin: 10px auto;
+         }
+
+        #networkInfo {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Starlight19 Token Info</h1>
+    <div id="loading" style="display: none;">Loading...</div>
+    <label for="networkSelect">Select Network:</label>
+    <select id="networkSelect">
+        <option value="Fantom">Fantom</option>
+        <option value="OKT">OKT</option>
+        <option value="MATIC">MATIC</option>
+        <option value="BSC">BSC</option>
+    </select>
+
+    <button id="connectWallet">Connect Wallet</button>
+    <div id="status"></div>
+    <div id="networkInfo" class="network-info" style="display: none;">
+        <p><strong>Current Network:</strong> <span id="networkName"></span></p>
+        <p><strong>Contract Address:</strong> <span id="contractAddress"></span></p>
+        <p><strong>Total Minted:</strong> <span id="totalMinted"></span></p>
+        <p><strong>Remaining Mintable:</strong> <span id="remainingMintable"></span></p>
+        <p><strong>Number of Holders:</strong> <span id="numHolders"></span></p>
+    </div>
+     <button id="mintButton" disabled>Mint 1224 STAR19</button>
+
+
+    <script>
+        const networkSelect = document.getElementById('networkSelect');
+        const connectWalletButton = document.getElementById('connectWallet');
+        const statusDiv = document.getElementById('status');
+        const networkNameSpan = document.getElementById('networkName');
+        const contractAddressSpan = document.getElementById('contractAddress');
+        const totalMintedSpan = document.getElementById('totalMinted');
+        const remainingMintableSpan = document.getElementById('remainingMintable');
+        const numHoldersSpan = document.getElementById('numHolders');
+         const mintButton = document.getElementById('mintButton');
+        const networkInfoDiv = document.getElementById('networkInfo');
+        const loadingDiv = document.getElementById('loading');
+
+
+        const contractAddresses = {
+            Fantom: "0xF8356dc643Fb8A7F5D6936DDFDD3c275Bcd9986a",
+            OKT: "0x14Ee879DaD2651bB72b1FF4B726D358D3a6C25cC",
+            MATIC: "0x6e108Ae38bCA1b3C3466e1e99d414CF08BA26b24",
+            BSC: "0x51842dB4c3ae18718FE16B08dF12c29a343427A7"
+        };
+
+        let currentProvider = null;
+        let contract = null;
+         let currentAccount = null;
+
+        const tokenDecimals = 18;
+        const maxMintPerAccount = 1224;
+
+       networkSelect.addEventListener('change', async () => {
+            await updateUI();
+        });
+
+
+        connectWalletButton.addEventListener('click', async () => {
+            if (window.ethereum) {
+                try {
+                    loadingDiv.style.display = 'block';
+                    currentProvider = new ethers.providers.Web3Provider(window.ethereum);
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                      currentAccount = await currentProvider.getSigner().getAddress();
+                    statusDiv.textContent = 'Wallet Connected';
+                     mintButton.disabled = false;
+                     mintButton.textContent = "Mint 1224 STAR19"
+                     await updateUI();
+                } catch (error) {
+                    statusDiv.textContent = 'Wallet Connect Failed: ' + error.message;
+                      mintButton.disabled = true;
+                      mintButton.textContent = "Mint 1224 STAR19"
+
+                     console.error("Error connecting:", error);
+
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+            } else {
+                statusDiv.textContent = 'MetaMask not found';
+                 mintButton.disabled = true;
+                  mintButton.textContent = "Mint 1224 STAR19"
+            }
+        });
+
+
+
+        mintButton.addEventListener('click', async () => {
+           if (currentProvider && contract) {
+              try {
+                    mintButton.disabled = true;
+                    mintButton.textContent = "Minting..."
+                    statusDiv.textContent = "Minting...Please wait!"
+                    const mintAmount = ethers.utils.parseUnits(maxMintPerAccount.toString(), tokenDecimals);
+                    const tx = await contract.connect(currentProvider.getSigner()).mint(mintAmount);
+                    await tx.wait();
+                     statusDiv.textContent = 'Minted successfully!';
+                     mintButton.disabled = true;
+                     mintButton.textContent = "Minted";
+                      await updateUI();
+                } catch (error) {
+                    statusDiv.textContent = 'Minting Failed: ' + error.message;
+                     mintButton.disabled = false;
+                     mintButton.textContent = "Mint 1224 STAR19"
+                      console.error("Minting failed:", error);
+                }
+             } else {
+                   statusDiv.textContent = 'Connect wallet first';
+             }
+        });
+
+    async function updateUI() {
+            const selectedNetwork = networkSelect.value;
+            const contractAddress = contractAddresses[selectedNetwork];
+            networkNameSpan.textContent = selectedNetwork;
+            contractAddressSpan.textContent = contractAddress;
+             networkInfoDiv.style.display = "block";
+
+            if (currentProvider && contractAddress) {
+                try {
+                     loadingDiv.style.display = 'block';
+                     contract = new ethers.Contract(contractAddress,
+                        [
+                           "function totalSupply() view returns (uint256)",
+                            "function balanceOf(address) view returns (uint256)",
+                            "function mint(uint256)",
+                             "function hasMinted(address) view returns(bool)"
+                        ],
+                        currentProvider);
+                         const totalSup = await contract.totalSupply();
+                         const totalMinted = ethers.utils.formatUnits(totalSup, tokenDecimals);
+                        const cap = 23256000;
+                        const remainingMintable = (cap - parseFloat(totalMinted)).toLocaleString();
+                        const holdersCount = await getHoldersCount();
+                         totalMintedSpan.textContent = parseFloat(totalMinted).toLocaleString();
+                        remainingMintableSpan.textContent = remainingMintable;
+                        numHoldersSpan.textContent = holdersCount.toLocaleString();
+
+                     if(currentAccount){
+                            const hasMinted = await contract.hasMinted(currentAccount);
+                             if(hasMinted){
+                                mintButton.disabled = true;
+                                mintButton.textContent = "Minted";
+                             }
+                           }
+                } catch (error) {
+                     statusDiv.textContent = "Error fetching data: " + error.message;
+                      console.error("Error fetching data",error)
+
+                } finally {
+                    loadingDiv.style.display = 'none';
+                }
+
+            } else {
+                    statusDiv.textContent = "Connect wallet first";
+            }
+        }
+
+
+        async function getHoldersCount() {
+             const selectedNetwork = networkSelect.value;
+                const contractAddress = contractAddresses[selectedNetwork];
+                 if(!currentProvider || !contractAddress){
+                    return "0";
+                 }
+                const contract = new ethers.Contract(contractAddress,
+                        [
+                            "event Transfer(address indexed from, address indexed to, uint256 value)"
+                        ],
+                        currentProvider);
+            try {
+                const transferEvents = await contract.queryFilter("Transfer",0,"latest");
+                    const holderAddresses = new Set();
+                    for (const event of transferEvents) {
+                        if (event.args.to !== "0x0000000000000000000000000000000000000000") {
+                          holderAddresses.add(event.args.to);
+                        }
+                        if (event.args.from !== "0x0000000000000000000000000000000000000000") {
+                         holderAddresses.add(event.args.from);
+                        }
+                    }
+                return holderAddresses.size;
+            } catch (error) {
+                  console.error("Error getting holder count", error);
+                  return "0";
+            }
+        }
+        networkInfoDiv.style.display = "none";
+
+    </script>
+</body>
+
+</html>
