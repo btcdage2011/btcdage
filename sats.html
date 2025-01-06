@@ -40,8 +40,26 @@
         #chart-container {
             position: relative;
             width: 95%;
-            height: 70vh;
             margin: 0 auto; /* 图表容器居中 */
+            height: auto;
+        }
+         /* 媒体查询，当屏幕宽度小于 768px 时 (通常是手机) */
+         @media (max-width: 768px) {
+             #chart-container {
+                height: calc(100vh - 200px);
+             }
+          }
+
+        .chartjs-tooltip {
+           position: absolute;
+           background-color: rgba(255, 255, 255, 0.9);
+           border: 1px solid #ccc;
+           padding: 5px;
+           border-radius: 5px;
+           pointer-events: none; /* 防止鼠标悬停在 tooltip 上时触发其他事件 */
+           z-index: 10; /* 确保 tooltip 显示在其他元素之上 */
+           white-space: nowrap;
+           font-size: 12px;
         }
     </style>
 </head>
@@ -67,10 +85,12 @@
     </div>
     <div id="chart-container">
         <canvas id="priceChart"></canvas>
+         <div id="customTooltip" class="chartjs-tooltip" style="display: none;"></div>
     </div>
     <script>
         let chart;
         let visibleDatasets = new Map();//用来存储用户修改的数据集的显示状态
+         let customTooltip = document.getElementById('customTooltip');
 
         // 动态加载导航栏
         fetch('nav.html')
@@ -153,7 +173,7 @@
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
             const data = await fetchData(startDate, endDate, 'daily');
-            createChart(data);
+             createChart(data);
 
             // 加载实时行情并设置自动刷新
             fetchRealTimeData();
@@ -173,10 +193,8 @@
              // 计算黄金与比特币的价格比率
              // 注意这里 * 1000
             const goldBtcUsdRatio = data.prices.map((price, i) =>  price && data.golds[i] ? (data.golds[i] / 31.1035) / price * 1000 : null);
-             //const goldBtcCnyRatio = data.prices.map((price, i) => price && data.golds[i] && data.ucs[i]?  ((data.golds[i] / 31.1035) * data.ucs[i]) / (price*data.ucs[i])  : null);
              // 注意这里 * 1000
-            const btcGoldUsdRatio = data.prices.map((price, i) => price && data.golds[i] ? price / (data.golds[i]/31.1035) * 1000: null);
-            //const btcGoldCnyRatio = data.prices.map((price, i) => price && data.golds[i] && data.ucs[i]? (price*data.ucs[i]) / ((data.golds[i]/31.1035)*data.ucs[i]) : null);
+            const btcGoldUsdRatio = data.prices.map((price, i) => price && data.golds[i] ? price / (data.golds[i]/31.1035) : null);
 
             return { btcToUsd, usdToSats, btcToCny, cnyToSats, usdToCny, cnyToUsd, goldToUsd, goldToCny,
                 goldBtcUsdRatio,  btcGoldUsdRatio};
@@ -196,10 +214,12 @@
 
         function createChart(data) {
             const ctx = document.getElementById('priceChart').getContext('2d');
-
+           // 初始化 visibleDatasets
+             visibleDatasets.clear();
             if (chart) {
                 chart.destroy(); // 销毁旧图表
             }
+
 
             const derivedData = calculateDerivedData(data);
 
@@ -207,7 +227,7 @@
                 type: 'line',
                 data: {
                     labels: data.labels,
-                    datasets: [
+                   datasets: [
                         {
                             label: '比特币价格 (CNY)',
                             data: derivedData.btcToCny,
@@ -298,7 +318,7 @@
                             borderWidth: 2,
                             yAxisID: 'btc-gold-usd-ratio',
                             hidden: true,
-                        },
+                        }
                     ],
                 },
                 options: {
@@ -332,7 +352,7 @@
                             title: { display: true, text: '人民币对比特聪价格 (sats)' },
                             display: false,
                         },
-                        'cny-usd': {
+                         'cny-usd': {
                             position: 'right',
                             title: { display: true, text: '人民币对美元汇率 ($)' },
                             display: false,
@@ -340,7 +360,7 @@
                         'gold-usd': {
                             position: 'left',
                             title: { display: true, text: '每克黄金价格 (USD)' },
-                            display: false, // 初始隐藏
+                             display: false, // 初始隐藏
                         },
                         'gold-cny': {
                             position: 'left',
@@ -371,12 +391,13 @@
                                 mode: 'x',
                             },
                         },
-                         legend: {
+                          legend: {
                             onClick: (e, legendItem, legend) => {
                                 const index = legendItem.datasetIndex;
                                 const meta = legend.chart.getDatasetMeta(index);
                                 const yAxisID = legend.chart.data.datasets[index].yAxisID;
                                 const datasetLabel = legend.chart.data.datasets[index].label;
+
                                 // 切换数据集显示/隐藏
                                 meta.hidden = !meta.hidden;
 
@@ -384,7 +405,7 @@
                                 legend.chart.options.scales[yAxisID].display = !meta.hidden;
 
                                 //记录状态
-                                visibleDatasets.set(datasetLabel, !meta.hidden);
+                                 visibleDatasets.set(datasetLabel, !meta.hidden);
 
                                 legend.chart.update();
                             },
@@ -392,22 +413,73 @@
                     },
                 },
             });
-              // 应用之前显示的曲线
+
+             // 应用之前显示的曲线
              chart.data.datasets.forEach((dataset, index) => {
-                const datasetLabel = dataset.label;
+                 const datasetLabel = dataset.label;
                  if (visibleDatasets.has(datasetLabel)) {
-                     chart.getDatasetMeta(index).hidden = !visibleDatasets.get(datasetLabel);
-                     chart.options.scales[dataset.yAxisID].display = visibleDatasets.get(datasetLabel);
-                 } else if (datasetLabel === '比特币价格 (CNY)') { // 默认显示比特币人民币价格曲线
-                      visibleDatasets.set(datasetLabel, true);
-                 }
-             });
+                      chart.getDatasetMeta(index).hidden = !visibleDatasets.get(datasetLabel);
+                      chart.options.scales[dataset.yAxisID].display = visibleDatasets.get(datasetLabel);
+                  }
+              });
+              chart.update();
 
-            chart.update();
-
+            // 添加悬停事件监听器
+             const chartCanvas = document.getElementById('priceChart');
+             chartCanvas.addEventListener('mousemove', handleChartHover);
+            chartCanvas.addEventListener('mouseout', () => {
+                customTooltip.style.display = 'none';
+            });
         }
 
-        async function fetchAndUpdate() {
+         function handleChartHover(event) {
+            const chartArea = chart.chartArea;
+            const canvas = chart.canvas;
+
+              if (!chartArea || !canvas) {
+                customTooltip.style.display = 'none';
+                return;
+             }
+             const mouseX = event.clientX - canvas.getBoundingClientRect().left;
+              const mouseY = event.clientY - canvas.getBoundingClientRect().top;
+              if (mouseX < chartArea.left || mouseX > chartArea.right || mouseY < chartArea.top || mouseY > chartArea.bottom ) {
+                    customTooltip.style.display = 'none';
+                    return;
+              }
+
+            const xValue = chart.scales.x.getValueForPixel(mouseX);
+             const xIndex = chart.data.labels.findIndex(label => chart.scales.x.getValueForPixel(chart.scales.x.getPixelForValue(label))===xValue);
+
+
+             if (xIndex === -1) {
+                   customTooltip.style.display = 'none';
+                    return;
+              }
+
+            let tooltipText = `<strong>${chart.data.labels[xIndex]}</strong><br>`;
+
+
+              chart.data.datasets.forEach((dataset,index) => {
+                 const meta = chart.getDatasetMeta(index);
+                if (!meta.hidden && dataset.data[xIndex]!= null) { // 只显示未隐藏的曲线数据
+                    tooltipText += `${dataset.label}: ${dataset.data[xIndex].toFixed(2)}<br>`;
+                }
+            });
+
+            customTooltip.innerHTML = tooltipText;
+            customTooltip.style.display = 'block';
+
+
+             // 设置 tooltip 的显示位置
+            if (mouseX > chartArea.right - 200) { // 右侧200像素的区域显示在左侧
+                customTooltip.style.left = (event.clientX - customTooltip.offsetWidth - 10) + 'px';
+            } else {
+                customTooltip.style.left = (event.clientX + 10) + 'px';
+            }
+             customTooltip.style.top = (event.clientY + 10) + 'px';
+
+        }
+          async function fetchAndUpdate() {
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value || new Date().toISOString().split('T')[0];
             const granularity = document.getElementById('granularity').value;
