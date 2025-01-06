@@ -193,7 +193,7 @@
              // 计算黄金与比特币的价格比率
              // 注意这里 * 1000
             const goldBtcUsdRatio = data.prices.map((price, i) =>  price && data.golds[i] ? (data.golds[i] / 31.1035) / price * 1000 : null);
-             // 注意这里 * 1000
+             // 注意这里
             const btcGoldUsdRatio = data.prices.map((price, i) => price && data.golds[i] ? price / (data.golds[i]/31.1035) : null);
 
             return { btcToUsd, usdToSats, btcToCny, cnyToSats, usdToCny, cnyToUsd, goldToUsd, goldToCny,
@@ -301,7 +301,7 @@
                             hidden: true,
                         },
                        {
-                            label: '黄金/比特币价格比',
+                            label: '1KG黄金/比特币(BTC)',
                             data: derivedData.goldBtcUsdRatio,
                             borderColor: 'rgba(128, 0, 128, 1)',// 紫色
                             backgroundColor: 'rgba(128, 0, 128, 0.2)',
@@ -311,7 +311,7 @@
                         },
 
                          {
-                            label: '比特币/黄金价格比',
+                            label: '1比特币/黄金(g)',
                             data: derivedData.btcGoldUsdRatio,
                             borderColor: 'rgba(173, 216, 230, 1)',// 淡蓝色
                             backgroundColor: 'rgba(173, 216, 230, 0.2)',
@@ -369,12 +369,12 @@
                          },
                          'gold-btc-usd-ratio':{
                             position: 'right',
-                            title: { display: true, text: '黄金/比特币价格比' },
+                            title: { display: true, text: '1KG黄金/比特币(BTC)' },
                              display: false, // 初始隐藏
                         },
                          'btc-gold-usd-ratio':{
                             position: 'right',
-                            title: { display: true, text: '比特币/黄金价格比' },
+                            title: { display: true, text: '1比特币/黄金(g)' },
                              display: false, // 初始隐藏
                         }
                     },
