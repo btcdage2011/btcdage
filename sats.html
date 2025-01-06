@@ -70,7 +70,9 @@
     </div>
     <script>
         let chart;
-            // 动态加载导航栏
+        let visibleDatasets = new Map();//用来存储用户修改的数据集的显示状态
+
+        // 动态加载导航栏
         fetch('nav.html')
             .then(response => response.text())
             .then(data => {
@@ -112,6 +114,10 @@
                 const usdToSats = 1 / (btcUsd / satsPerBtc); // USD to Sats
                 const cnyToSats = 1 / (btcCny / satsPerBtc); // CNY to Sats
                 const cnyUsd = 1 / usdCny; // CNY to USD
+                const goldUsd = data.gold; // 每盎司黄金的美元价格
+                const goldGramUsd = goldUsd / 31.1035; // 每克黄金的美元价格
+                const goldGramCny = goldGramUsd * usdCny; // 每克黄金的人民币价格
+
 
                 let currentDate = new Date();
                 // 手动调整为东八区时间（北京时间）
@@ -123,6 +129,9 @@
                     <strong>实时行情： ${currentTime} （每分钟自动更新）</strong> <br>
                     <strong>【BTC/USD】</strong>1比特币=${btcUsd.toFixed(2)}美元  |
                     <strong>【BTC/CNY】</strong>1比特币=${btcCny.toFixed(2)}元  |
+                     <strong>【Gold/USD】</strong>1盎司黄金=${goldUsd.toFixed(2)}美元  |
+                      <strong>【Gold/USD】</strong>1克黄金=${goldGramUsd.toFixed(2)}美元  |
+                     <strong>【Gold/CNY】</strong>1克黄金=${goldGramCny.toFixed(2)}元  |
                     <strong>【USD/Sats】</strong>1美元=${usdToSats.toFixed(2)}聪  |
                     <strong>【CNY/Sats】</strong>1元=${cnyToSats.toFixed(2)}聪  |
                     <strong>【USD/CNY】</strong>1美元=${usdCny.toFixed(2)}元  |
@@ -151,7 +160,7 @@
             setInterval(fetchRealTimeData, 60000); // 每分钟刷新一次
         };
 
-        function calculateDerivedData(data) {
+         function calculateDerivedData(data) {
             const btcToUsd = data.prices; // 比特币对美元价格
             const usdToSats = data.prices.map(price => price ? 1e8 / price : null); // 美元对比特聪价格
             const btcToCny = data.prices.map((price, i) => price && data.ucs[i] ? price * data.ucs[i] : null); // 比特币对人民币价格
@@ -159,8 +168,20 @@
             const usdToCny = data.ucs; // 美元对人民币汇率
             const cnyToUsd = data.ucs.map(uc => uc ? 1 / uc : null); // 人民币对美元汇率
 
-            return { btcToUsd, usdToSats, btcToCny, cnyToSats, usdToCny, cnyToUsd };
+            const goldToUsd = data.golds.map(gold => gold ? gold/31.1035 : null);// 每克黄金的美元价格
+            const goldToCny = data.golds.map((gold, i) => gold && data.ucs[i] ? (gold/31.1035) * data.ucs[i] : null); // 每克黄金的人民币价格
+             // 计算黄金与比特币的价格比率
+             // 注意这里 * 1000
+            const goldBtcUsdRatio = data.prices.map((price, i) =>  price && data.golds[i] ? (data.golds[i] / 31.1035) / price * 1000 : null);
+             //const goldBtcCnyRatio = data.prices.map((price, i) => price && data.golds[i] && data.ucs[i]?  ((data.golds[i] / 31.1035) * data.ucs[i]) / (price*data.ucs[i])  : null);
+             // 注意这里 * 1000
+            const btcGoldUsdRatio = data.prices.map((price, i) => price && data.golds[i] ? price / (data.golds[i]/31.1035) * 1000: null);
+            //const btcGoldCnyRatio = data.prices.map((price, i) => price && data.golds[i] && data.ucs[i]? (price*data.ucs[i]) / ((data.golds[i]/31.1035)*data.ucs[i]) : null);
+
+            return { btcToUsd, usdToSats, btcToCny, cnyToSats, usdToCny, cnyToUsd, goldToUsd, goldToCny,
+                goldBtcUsdRatio,  btcGoldUsdRatio};
         }
+
 
         async function fetchData(startDate, endDate, granularity) {
             const params = new URLSearchParams();
@@ -241,6 +262,43 @@
                             yAxisID: 'cny-usd',
                             hidden: true,
                         },
+                        {
+                            label: '每克黄金价格 (USD)',  // 新增每克黄金的美元价格
+                            data: derivedData.goldToUsd,
+                            borderColor: 'rgba(218, 165, 32, 1)', // 金色
+                            backgroundColor: 'rgba(218, 165, 32, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'gold-usd',
+                            hidden: true,
+                         },
+                         {
+                            label: '每克黄金价格 (CNY)', // 新增每克黄金的人民币价格
+                            data: derivedData.goldToCny,
+                            borderColor: 'rgba(255, 215, 0, 1)', // 金色
+                            backgroundColor: 'rgba(255, 215, 0, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'gold-cny',
+                            hidden: true,
+                        },
+                       {
+                            label: '黄金/比特币价格比',
+                            data: derivedData.goldBtcUsdRatio,
+                            borderColor: 'rgba(128, 0, 128, 1)',// 紫色
+                            backgroundColor: 'rgba(128, 0, 128, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'gold-btc-usd-ratio',
+                            hidden: true,
+                        },
+
+                         {
+                            label: '比特币/黄金价格比',
+                            data: derivedData.btcGoldUsdRatio,
+                            borderColor: 'rgba(173, 216, 230, 1)',// 淡蓝色
+                            backgroundColor: 'rgba(173, 216, 230, 0.2)',
+                            borderWidth: 2,
+                            yAxisID: 'btc-gold-usd-ratio',
+                            hidden: true,
+                        },
                     ],
                 },
                 options: {
@@ -279,6 +337,26 @@
                             title: { display: true, text: '人民币对美元汇率 ($)' },
                             display: false,
                         },
+                        'gold-usd': {
+                            position: 'left',
+                            title: { display: true, text: '每克黄金价格 (USD)' },
+                            display: false, // 初始隐藏
+                        },
+                        'gold-cny': {
+                            position: 'left',
+                             title: { display: true, text: '每克黄金价格 (CNY)' },
+                            display: false, // 初始隐藏
+                         },
+                         'gold-btc-usd-ratio':{
+                            position: 'right',
+                            title: { display: true, text: '黄金/比特币价格比' },
+                             display: false, // 初始隐藏
+                        },
+                         'btc-gold-usd-ratio':{
+                            position: 'right',
+                            title: { display: true, text: '比特币/黄金价格比' },
+                             display: false, // 初始隐藏
+                        }
                     },
                     plugins: {
                         zoom: {
@@ -293,17 +371,20 @@
                                 mode: 'x',
                             },
                         },
-                        legend: {
+                         legend: {
                             onClick: (e, legendItem, legend) => {
                                 const index = legendItem.datasetIndex;
                                 const meta = legend.chart.getDatasetMeta(index);
                                 const yAxisID = legend.chart.data.datasets[index].yAxisID;
-
+                                const datasetLabel = legend.chart.data.datasets[index].label;
                                 // 切换数据集显示/隐藏
                                 meta.hidden = !meta.hidden;
 
                                 // 同步 Y 轴显示/隐藏
                                 legend.chart.options.scales[yAxisID].display = !meta.hidden;
+
+                                //记录状态
+                                visibleDatasets.set(datasetLabel, !meta.hidden);
 
                                 legend.chart.update();
                             },
@@ -311,6 +392,19 @@
                     },
                 },
             });
+              // 应用之前显示的曲线
+             chart.data.datasets.forEach((dataset, index) => {
+                const datasetLabel = dataset.label;
+                 if (visibleDatasets.has(datasetLabel)) {
+                     chart.getDatasetMeta(index).hidden = !visibleDatasets.get(datasetLabel);
+                     chart.options.scales[dataset.yAxisID].display = visibleDatasets.get(datasetLabel);
+                 } else if (datasetLabel === '比特币价格 (CNY)') { // 默认显示比特币人民币价格曲线
+                      visibleDatasets.set(datasetLabel, true);
+                 }
+             });
+
+            chart.update();
+
         }
 
         async function fetchAndUpdate() {
