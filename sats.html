@@ -471,12 +471,17 @@
 
 
              // 设置 tooltip 的显示位置
-            if (mouseX > chartArea.right - 200) { // 右侧200像素的区域显示在左侧
+            if (mouseX > chartArea.right - 500) { // 右侧500像素的区域显示在左侧
                 customTooltip.style.left = (event.clientX - customTooltip.offsetWidth - 10) + 'px';
             } else {
                 customTooltip.style.left = (event.clientX + 10) + 'px';
             }
-             customTooltip.style.top = (event.clientY + 10) + 'px';
+
+            if (mouseY > chartArea.bottom - 500) { // 底部500像素的区域显示在上方
+                customTooltip.style.top = (event.clientY - customTooltip.offsetHeight - 200) + 'px';
+            } else {
+                customTooltip.style.top = (event.clientY - 100) + 'px';
+            }
 
         }
           async function fetchAndUpdate() {
