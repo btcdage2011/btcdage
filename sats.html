@@ -81,7 +81,7 @@
             <option value="monthly">每月</option>
             <option value="yearly">每年</option>
         </select>
-        <button onclick="fetchAndUpdate()">查询</button> 【注意：历史曲线数据会滞后一天。】
+        <button onclick="fetchAndUpdate()">查询</button>
     </div>
     <div id="chart-container">
         <canvas id="priceChart"></canvas>
@@ -191,9 +191,11 @@
             const goldToUsd = data.golds.map(gold => gold ? gold/31.1035 : null);// 每克黄金的美元价格
             const goldToCny = data.golds.map((gold, i) => gold && data.ucs[i] ? (gold/31.1035) * data.ucs[i] : null); // 每克黄金的人民币价格
              // 计算黄金与比特币的价格比率
-             // 注意这里 * 1000
-            const goldBtcUsdRatio = data.prices.map((price, i) =>  price && data.golds[i] ? (data.golds[i] / 31.1035) / price * 1000 : null);
-             // 注意这里
+             // 注意这里 * 1000 .toFixed(2)
+             //const goldBtcUsdRatio = data.prices.map((price, i) =>  price && data.golds[i] ? (data.golds[i] / 31.1035) / price * 1000 : null);
+             const goldBtcUsdRatio = data.prices.map((price, i) =>  price && data.golds[i] ? (data.golds[i] / 31.1035) / price * 1000 : null);
+             //const goldBtcUsdRatio = data.prices.map((price, i) =>  price && data.golds[i] ? ((data.golds[i] / 31.1035) / price * 1000)toFixed(8) : null);
+              // 注意这里
             const btcGoldUsdRatio = data.prices.map((price, i) => price && data.golds[i] ? price / (data.golds[i]/31.1035) : null);
 
             return { btcToUsd, usdToSats, btcToCny, cnyToSats, usdToCny, cnyToUsd, goldToUsd, goldToCny,
@@ -459,11 +461,10 @@
             let tooltipText = `<strong>${chart.data.labels[xIndex]}</strong><br>`;
 
 
-              chart.data.datasets.forEach((dataset,index) => {
-                 const meta = chart.getDatasetMeta(index);
-                if (!meta.hidden && dataset.data[xIndex]!= null) { // 只显示未隐藏的曲线数据
+            chart.data.datasets.forEach((dataset,index) => {
+                 if (dataset.data[xIndex]!= null) {
                     tooltipText += `${dataset.label}: ${dataset.data[xIndex].toFixed(2)}<br>`;
-                }
+                 }
             });
 
             customTooltip.innerHTML = tooltipText;
