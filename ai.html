@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人工智能：小聪</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+        #nav-container {
+            width: 100%;
+            height: 200px; /* 设置导航栏的高度 */
+        }
+        .iframe-container {
+            width: 100%;
+             height: calc(100% - 200px); /* 调整 iframe 高度以适应导航栏 */
+            overflow: hidden; /* 解决导航栏遮挡 iframe 的问题 */
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+       #nav-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+
+    </style>
+</head>
+<body>
+    <div id="nav-container">
+        <iframe id="nav-iframe" src="https://btcdage2011.github.io/btcdage/nav.html" title="导航栏"></iframe>
+    </div>
+    <div class="iframe-container">
+        <iframe src="https://122.51.252.52:3443/" title="人工智能：小聪"></iframe>
+    </div>
+</body>
+</html>
