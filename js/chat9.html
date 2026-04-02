@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DageChat | 安全私聊端</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="nostr.bundle.js"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; overscroll-behavior-y: contain; }
+        .chat-bg { background-color: #f0f2f5; }
+        .h-screen-dvh { height: 100vh; height: 100dvh; }
+        .no-select { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen-dvh w-screen overflow-hidden flex items-center justify-center font-sans">
+
+    <!-- ================= 登录界面 ================= -->
+    <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
+        <div class="max-w-sm w-full mx-auto">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">DageChat 🔐</h2>
+            <p class="text-sm text-gray-500 mb-8 text-center">端到端加密 • 本地存储双重加密</p>
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Relay 服务器</label>
+                    <input type="text" id="relay-input" class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none" value="wss://relay.snort.social">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">私钥 (nsec / hex)</label>
+                    <input type="password" id="sk-input" class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 font-mono text-base outline-none" placeholder="nsec1...">
+                </div>
+                <button onclick="login()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition shadow-md font-medium active:scale-95">登 录</button>
+                <div class="relative flex py-4 items-center">
+                    <div class="flex-grow border-t border-gray-200"></div>
+                    <span class="flex-shrink-0 mx-4 text-gray-400 text-xs">没有账号？</span>
+                    <div class="flex-grow border-t border-gray-200"></div>
+                </div>
+                <button onclick="openCreateAccountModal()" class="w-full bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition shadow-md font-medium active:scale-95">一键生成新私钥</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 主界面 ================= -->
+    <div id="app-screen" class="w-full h-full md:max-w-6xl md:shadow-2xl flex hidden bg-white relative overflow-hidden">
+        <!-- 左侧：侧边栏 -->
+        <div id="sidebar" class="w-full md:w-[320px] lg:w-[350px] flex-shrink-0 border-r border-gray-200 flex flex-col bg-white h-full z-10">
+            <div class="p-4 bg-gray-50 flex justify-between items-center border-b border-gray-200 shrink-0">
+                <div class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition min-w-0" onclick="showProfileModal()" title="点击修改资料 / 备份私钥">
+                    <div id="my-avatar" class="w-11 h-11 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow shrink-0">我</div>
+                    <div class="min-w-0 pr-2">
+                        <div id="my-name" class="font-semibold text-gray-800 text-base truncate">加载中...</div>
+                        <div class="flex items-center text-xs text-gray-500 mt-0.5">
+                            <span id="relay-status" class="w-2 h-2 rounded-full bg-red-500 mr-1.5 shadow-sm shrink-0"></span>
+                            <span id="current-relay-display" class="truncate">Relay</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="logout()" class="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 border border-red-200 rounded-lg bg-red-50 shrink-0 active:bg-red-100">退出</button>
+            </div>
+            <div class="p-3 border-b border-gray-200 bg-white shrink-0">
+                <div class="flex space-x-2">
+                    <input type="text" id="new-contact-input" placeholder="粘贴对方 npub 公钥" class="flex-1 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
+                    <button onclick="addContact()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 shadow-sm active:scale-95">添加</button>
+                </div>
+            </div>
+            <div id="contacts-list" class="flex-1 overflow-y-auto no-scrollbar bg-white pb-safe"></div>
+        </div>
+
+        <!-- 右侧：聊天区 -->
+        <div id="chat-area" class="absolute md:static top-0 left-0 w-full md:w-auto h-full flex-1 flex flex-col chat-bg z-20 transform translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
+            <div id="chat-header" class="p-3 md:p-4 bg-white border-b border-gray-200 flex items-center justify-between shadow-sm z-10 shrink-0 hidden">
+                <div class="flex items-center space-x-3 min-w-0">
+                    <button onclick="closeChat()" class="md:hidden p-2 -ml-2 text-gray-600 active:scale-95">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <div id="chat-avatar" class="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold shadow-sm shrink-0">?</div>
+                    <div class="min-w-0">
+                        <div id="chat-name" class="font-semibold text-gray-800 text-base md:text-md truncate">选择联系人</div>
+                        <div id="chat-pubkey" class="text-xs text-gray-400 truncate cursor-pointer hover:text-blue-500 transition max-w-[120px] md:max-w-[200px]" onclick="copyText(this.innerText); alert('已复制！')"></div>
+                    </div>
+                </div>
+                <div class="flex space-x-1 shrink-0">
+                    <button onclick="clearCurrentChatHistory()" class="text-xs text-gray-500 hover:text-red-500 px-3 py-2 bg-white rounded-lg active:bg-gray-100">清空本地</button>
+                    <button onclick="removeCurrentContact()" class="text-xs text-red-400 hover:text-red-600 px-3 py-2 bg-white rounded-lg active:bg-red-50">删除好友</button>
+                </div>
+            </div>
+
+            <div id="welcome-area" class="hidden md:flex absolute inset-0 flex-col items-center justify-center text-gray-400 bg-gray-50 z-0">
+                <div class="w-24 h-24 mb-6 rounded-full bg-white shadow-sm flex items-center justify-center">
+                    <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </div>
+                <h3 class="text-xl font-medium text-gray-600">双重加密私聊</h3>
+                <p class="text-sm mt-2 text-gray-400 max-w-sm text-center">网络传输与本地存储均经过严格加密</p>
+            </div>
+
+            <div id="message-list" class="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar hidden z-0"></div>
+
+            <div id="chat-input-area" class="p-3 md:p-4 bg-white border-t border-gray-200 hidden z-10 shrink-0 pb-safe">
+                <div class="flex space-x-2 items-end">
+                    <textarea id="msg-input" rows="1" placeholder="输入消息... 长按气泡更多操作" class="flex-1 border border-gray-300 rounded-xl py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm resize-none text-base max-h-32 no-scrollbar" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" onkeypress="handleEnter(event)"></textarea>
+                    <button onclick="sendMessage()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 shadow-sm font-medium active:scale-95 h-[46px]">发送</button>
+                </div>
+            </div>
+
+            <div id="select-action-area" class="p-3 md:p-4 bg-gray-50 border-t border-gray-200 hidden z-10 shrink-0 pb-safe flex justify-between items-center shadow-lg">
+                <button onclick="exitSelectMode()" class="text-gray-600 px-5 py-2 bg-white border border-gray-300 rounded-lg active:bg-gray-100 text-sm">取消</button>
+                <div class="text-sm text-gray-500">已选 <span id="select-count" class="text-blue-600 font-bold">0</span> 条</div>
+                <button onclick="deleteSelectedLocally()" class="text-white bg-red-500 px-5 py-2 rounded-lg active:bg-red-600 text-sm shadow-sm flex items-center">
+                    <span>删除 (仅本地)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 消息长按底部弹窗 ================= -->
+    <div id="msg-action-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden z-50 flex flex-col justify-end md:justify-center md:items-center transition-opacity" onclick="closeMsgActionModal(event)">
+        <div id="msg-action-content" class="bg-white w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2 md:hidden"></div>
+            <div class="p-2 space-y-1">
+                <button onclick="doAction('copy')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">📄 复制</button>
+                <button onclick="doAction('select_copy')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">✂️ 选择复制</button>
+                <div class="h-[1px] bg-gray-100 my-1"></div>
+                <button onclick="doAction('delete')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">🗑️ 删除 (仅本地)</button>
+                <button id="btn-recall" onclick="doAction('recall')" class="w-full py-4 text-red-500 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium hidden">↩️ 撤回 (双方同步删除)</button>
+                <button onclick="doAction('multi')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">☑️ 多选</button>
+                <div class="h-[1px] bg-gray-100 my-1"></div>
+                <button onclick="closeMsgActionModal()" class="w-full py-4 text-gray-500 text-[17px] active:bg-gray-100 rounded-lg text-center">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 选择复制弹窗 ================= -->
+    <div id="select-copy-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[60] flex items-center justify-center p-4">
+        <div class="bg-white p-5 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg font-bold text-gray-800">选择复制</h3>
+                <button onclick="closeSelectCopyModal()" class="text-gray-500 hover:text-gray-800 p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-2">长按下方文本以自由选择并复制</p>
+            <div id="select-copy-text" class="flex-1 overflow-y-auto p-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap break-words" style="user-select: text; -webkit-user-select: text; -webkit-touch-callout: default;"></div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="copyText(document.getElementById('select-copy-text').innerText); alert('已全选复制！'); closeSelectCopyModal();" class="px-4 py-2.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition mr-2">全选复制</button>
+                <button onclick="closeSelectCopyModal()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 个人资料与设置弹窗 ================= -->
+    <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40 p-4 flex items-center justify-center overflow-y-auto">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm my-auto">
+            <h3 class="text-lg font-bold text-gray-800 mb-5">个人资料与安全设置</h3>
+            <div class="space-y-4">
+                <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <label class="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">当前连接 Relay</label>
+                    <input type="text" id="edit-relay" class="w-full border-none bg-transparent p-0 text-base md:text-sm focus:ring-0 text-blue-600 font-medium">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">展示昵称</label>
+                    <input type="text" id="edit-name" class="w-full border border-gray-300 rounded-lg p-2.5 text-base md:text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">头像链接 (URL)</label>
+                    <input type="text" id="edit-avatar" class="w-full border border-gray-300 rounded-lg p-2.5 text-base md:text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">我的公钥 (发给朋友添加你)</label>
+                    <div class="flex">
+                        <input type="text" id="my-npub-display" readonly class="w-full border border-gray-300 rounded-l-lg p-2.5 bg-gray-100 text-gray-500 font-mono text-xs overflow-hidden outline-none">
+                        <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 rounded-r-lg text-sm border border-l-0 border-gray-300 transition font-medium">复制</button>
+                    </div>
+                </div>
+                <div class="mt-4 border-t border-gray-200 pt-4">
+                    <label class="block text-sm font-bold text-red-600 mb-1">私钥备份 (须验证密码)</label>
+                    <div class="flex">
+                        <input type="password" id="my-nsec-display" readonly value="••••••••••••••" class="w-full border border-gray-300 rounded-l-lg p-2.5 bg-red-50 text-red-600 font-mono text-xs overflow-hidden outline-none">
+                        <button onclick="actionWithPasswordVerification('toggleKey')" id="btn-toggle-key" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 text-sm border-t border-b border-gray-300 transition font-medium">显示</button>
+                        <button onclick="actionWithPasswordVerification('copyKey')" class="bg-red-500 hover:bg-red-600 text-white px-3 rounded-r-lg text-sm border border-l-0 border-red-500 transition font-medium whitespace-nowrap">复制</button>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button onclick="closeProfileModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
+                <button onclick="saveProfile()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 设置密码 弹窗 ================= -->
+    <div id="pwd-setup-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[60] flex items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+            <h3 class="text-lg font-bold text-gray-800 mb-2" id="pwd-setup-title">设置安全密码</h3>
+            <p class="text-sm text-gray-500 mb-5" id="pwd-setup-desc">此密码用于保护您的私钥，每次查看或复制私钥时都需要输入该密码。(本地加密，遗忘无法找回)</p>
+            <div class="space-y-4">
+                <input type="password" id="new-pwd" placeholder="输入新密码 (至少8位)" class="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="password" id="confirm-pwd" placeholder="再次确认密码" class="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none" onkeypress="if(event.key==='Enter') submitPwdSetup()">
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button onclick="closePwdSetupModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
+                <button onclick="submitPwdSetup()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 验证密码 弹窗 ================= -->
+    <div id="pwd-verify-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[60] flex items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">安全身份验证</h3>
+            <p class="text-sm text-gray-500 mb-5">请输入您的安全密码以授权此次操作。</p>
+            <input type="password" id="verify-pwd" placeholder="输入安全密码" class="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none" onkeypress="if(event.key==='Enter') submitPwdVerify()">
+            <div class="mt-6 flex justify-end space-x-3">
+                <button onclick="closePwdVerifyModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
+                <button onclick="submitPwdVerify()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">验证</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 核心 JavaScript ================= -->
+    <script>
+        let nt;
+        let privKeyHex = null;
+        let pubKeyHex = null;
+        let currentRelayUrl = "wss://relay.snort.social";
+        let ws = null;
+        let reconnectTimer = null;
+
+        let profiles = {};
+        let contacts = [];
+        let messages = {};
+        let unreadCounts = {}; // 新增未读状态管理
+        let currentChatPk = null;
+
+        let hiddenMsgsSet = new Set();
+        let isSelectMode = false;
+        let selectedMsgIds = new Set();
+        let touchTimer = null;
+        let currentActionMsgId = null;
+        let currentActionIsMe = false;
+
+        const TIMEOUT_MS = 60 * 60 * 1000;
+        let pwdContext = null;
+        let pendingAction = null;
+
+        function updateActivity() { if (privKeyHex) localStorage.setItem('lastActive', Date.now().toString()); }
+        function checkTimeout() {
+            if (!privKeyHex) return;
+            const lastActive = localStorage.getItem('lastActive');
+            if (lastActive && (Date.now() - parseInt(lastActive)) > TIMEOUT_MS) { alert("超时自动安全退出"); logout(); }
+        }
+        window.addEventListener('mousemove', updateActivity);
+        window.addEventListener('keydown', updateActivity);
+        window.addEventListener('touchstart', updateActivity);
+        setInterval(checkTimeout, 60000);
+
+        // ================= 密码安全 WebCrypto SHA-256 =================
+        async function hashPassword(password) {
+            const msgBuffer = new TextEncoder().encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function openCreateAccountModal() {
+            pwdContext = 'create_account';
+            document.getElementById('pwd-setup-title').innerText = "创建新账号 (设置密码)";
+            document.getElementById('pwd-setup-desc').innerText = "系统将生成新私钥。请设置密码保护私钥(至少8位)。密码仅存在本地，遗忘无法找回！";
+            document.getElementById('new-pwd').value = '';
+            document.getElementById('confirm-pwd').value = '';
+            document.getElementById('pwd-setup-modal').classList.remove('hidden');
+        }
+
+        function closePwdSetupModal() {
+            document.getElementById('pwd-setup-modal').classList.add('hidden');
+            pwdContext = null;
+        }
+
+        async function submitPwdSetup() {
+            let p1 = document.getElementById('new-pwd').value;
+            let p2 = document.getElementById('confirm-pwd').value;
+            if (p1.length < 8) return alert("密码长度至少为 8 位！");
+            if (p1 !== p2) return alert("两次输入的密码不一致！");
+
+            let hashed = await hashPassword(p1);
+
+            if (pwdContext === 'create_account') {
+                privKeyHex = nt.generatePrivateKey();
+                pubKeyHex = nt.getPublicKey(privKeyHex);
+                localStorage.setItem('dage_pwd_hash_' + pubKeyHex, hashed);
+                currentRelayUrl = document.getElementById('relay-input').value.trim() || currentRelayUrl;
+                localStorage.setItem('dage_relay', currentRelayUrl);
+                localStorage.setItem('dage_sk', privKeyHex);
+                updateActivity();
+                closePwdSetupModal();
+                alert("账号创建成功！私钥已安全生成。");
+                await initializeApp();
+            } else if (pwdContext === 'setup_for_existing') {
+                localStorage.setItem('dage_pwd_hash_' + pubKeyHex, hashed);
+                alert("密码设置成功！");
+                closePwdSetupModal();
+                executePendingKeyAction();
+            }
+        }
+
+        async function actionWithPasswordVerification(actionStr) {
+            let skInput = document.getElementById('my-nsec-display');
+
+            if (actionStr === 'toggleKey' && skInput.type === 'text') {
+                skInput.value = "••••••••••••••";
+                skInput.type = 'password';
+                document.getElementById('btn-toggle-key').innerText = '显示';
+                return;
+            }
+
+            let savedHash = localStorage.getItem('dage_pwd_hash_' + pubKeyHex);
+            pendingAction = actionStr;
+
+            if (!savedHash) {
+                pwdContext = 'setup_for_existing';
+                document.getElementById('pwd-setup-title').innerText = "首次安全升级 (设置密码)";
+                document.getElementById('pwd-setup-desc').innerText = "为保护私钥，请先设置密码(至少8位)。以后每次查看私钥都需要验证。";
+                document.getElementById('new-pwd').value = '';
+                document.getElementById('confirm-pwd').value = '';
+                document.getElementById('pwd-setup-modal').classList.remove('hidden');
+            } else {
+                document.getElementById('verify-pwd').value = '';
+                document.getElementById('pwd-verify-modal').classList.remove('hidden');
+                setTimeout(() => document.getElementById('verify-pwd').focus(), 100);
+            }
+        }
+
+        function closePwdVerifyModal() {
+            document.getElementById('pwd-verify-modal').classList.add('hidden');
+            pendingAction = null;
+        }
+
+        async function submitPwdVerify() {
+            let inputPwd = document.getElementById('verify-pwd').value;
+            if (!inputPwd) return;
+
+            let hashedInput = await hashPassword(inputPwd);
+            let savedHash = localStorage.getItem('dage_pwd_hash_' + pubKeyHex);
+
+            if (hashedInput === savedHash) {
+                document.getElementById('pwd-verify-modal').classList.add('hidden');
+                executePendingKeyAction();
+                pendingAction = null;
+            } else {
+                alert("密码错误，验证失败！");
+            }
+        }
+
+        function executePendingKeyAction() {
+            if (!pendingAction) return;
+            let skInput = document.getElementById('my-nsec-display');
+            let btnToggle = document.getElementById('btn-toggle-key');
+            let realNsec = nt.nip19.nsecEncode(privKeyHex);
+
+            if (pendingAction === 'toggleKey') {
+                skInput.value = realNsec;
+                skInput.type = 'text';
+                btnToggle.innerText = '隐藏';
+            } else if (pendingAction === 'copyKey') {
+                copyText(realNsec);
+                alert('私钥已复制！任何人拿到私钥都可以登录账号，请妥善保管！');
+                skInput.value = "••••••••••••••";
+                skInput.type = 'password';
+                btnToggle.innerText = '显示';
+            }
+        }
+
+        // ================= 加密本地存储引擎 =================
+        async function saveEncryptedData(key, obj) {
+            if (!privKeyHex || !pubKeyHex) return;
+            try {
+                let jsonStr = JSON.stringify(obj);
+                let ciphertext = await nt.nip04.encrypt(privKeyHex, pubKeyHex, jsonStr);
+                localStorage.setItem(`dage_enc_${key}_${pubKeyHex}`, ciphertext);
+            } catch(e) {}
+        }
+
+        async function loadEncryptedData(key, defaultVal) {
+            if (!privKeyHex || !pubKeyHex) return defaultVal;
+            try {
+                let ciphertext = localStorage.getItem(`dage_enc_${key}_${pubKeyHex}`);
+                if (!ciphertext) return defaultVal;
+                let plaintext = await nt.nip04.decrypt(privKeyHex, pubKeyHex, ciphertext);
+                return JSON.parse(plaintext);
+            } catch(e) { return defaultVal; }
+        }
+
+        function syncLocalEncryptedCache() {
+            saveEncryptedData('hidden_ids', Array.from(hiddenMsgsSet));
+            saveEncryptedData('msg_cache', messages);
+            saveEncryptedData('unread_counts', unreadCounts);
+        }
+
+        // ================= 初始化与登录 =================
+        window.onload = async () => {
+            if (!window.NostrTools) return alert("nostr.bundle.js 未找到");
+            nt = window.NostrTools;
+
+            const savedRelay = localStorage.getItem('dage_relay');
+            if (savedRelay) currentRelayUrl = savedRelay;
+            document.getElementById('relay-input').value = currentRelayUrl;
+
+            const savedSk = localStorage.getItem('dage_sk');
+            const lastActive = localStorage.getItem('lastActive');
+
+            if (savedSk && lastActive && (Date.now() - parseInt(lastActive) < TIMEOUT_MS)) {
+                try {
+                    privKeyHex = savedSk;
+                    pubKeyHex = nt.getPublicKey(privKeyHex);
+                    updateActivity();
+                    await initializeApp();
+                    return;
+                } catch (e) { localStorage.removeItem('dage_sk'); }
+            }
+            document.getElementById('login-screen').classList.remove('hidden');
+        };
+
+        async function login() {
+            let input = document.getElementById('sk-input').value.trim();
+            if (!input) return alert("请输入私钥");
+            try {
+                if (input.startsWith('nsec')) { privKeyHex = nt.nip19.decode(input).data; }
+                else { privKeyHex = input; }
+                pubKeyHex = nt.getPublicKey(privKeyHex);
+
+                currentRelayUrl = document.getElementById('relay-input').value.trim() || currentRelayUrl;
+                localStorage.setItem('dage_relay', currentRelayUrl);
+                localStorage.setItem('dage_sk', privKeyHex);
+                updateActivity();
+
+                await initializeApp();
+            } catch (e) { alert("私钥无效！"); }
+        }
+
+        function logout() {
+            localStorage.removeItem('dage_sk');
+            localStorage.removeItem('lastActive');
+            window.location.reload();
+        }
+
+        async function initializeApp() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+            if(window.innerWidth >= 768) document.getElementById('welcome-area').classList.remove('hidden');
+
+            document.getElementById('my-npub-display').value = nt.nip19.npubEncode(pubKeyHex);
+            document.getElementById('current-relay-display').innerText = currentRelayUrl.replace('ws://', '').replace('wss://', '');
+
+            let hiddenArr = await loadEncryptedData('hidden_ids', []);
+            hiddenMsgsSet = new Set(hiddenArr);
+            messages = await loadEncryptedData('msg_cache', {});
+            unreadCounts = await loadEncryptedData('unread_counts', {});
+
+            renderContacts();
+            initRelayConnection();
+        }
+
+        // ================= Nostr 网络通讯 =================
+        function initRelayConnection() {
+            if (ws) { ws.onclose = null; ws.close(); }
+            document.getElementById('relay-status').classList.replace('bg-green-500', 'bg-red-500');
+
+            try { ws = new WebSocket(currentRelayUrl); } catch(e) { return; }
+
+            ws.onopen = () => {
+                document.getElementById('relay-status').classList.replace('bg-red-500', 'bg-green-500');
+                if (reconnectTimer) clearInterval(reconnectTimer);
+
+                const req = ["REQ", "sub-" + Date.now(),
+                    { kinds: [0, 3], authors: [pubKeyHex] },
+                    { kinds: [4, 5], "#p": [pubKeyHex] },
+                    { kinds: [4, 5], authors: [pubKeyHex] }
+                ];
+                ws.send(JSON.stringify(req));
+            };
+
+            ws.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+                if (data[0] === "EVENT") await handleNostrEvent(data[2]);
+            };
+
+            ws.onclose = () => {
+                document.getElementById('relay-status').classList.replace('bg-green-500', 'bg-red-500');
+                reconnectTimer = setTimeout(initRelayConnection, 3000);
+            };
+        }
+
+        async function publishEvent(kind, content, tags = []) {
+            let event = { kind, created_at: Math.floor(Date.now() / 1000), tags, content, pubkey: pubKeyHex };
+            event.id = nt.getEventHash(event);
+            event.sig = nt.signEvent(event, privKeyHex);
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", event]));
+            return event;
+        }
+
+        async function handleNostrEvent(ev) {
+            if (ev.kind === 0) {
+                try {
+                    profiles[ev.pubkey] = JSON.parse(ev.content);
+                    if (ev.pubkey === pubKeyHex) {
+                        document.getElementById('my-name').innerText = profiles[ev.pubkey].name || '我';
+                        if (profiles[ev.pubkey].picture) document.getElementById('my-avatar').innerHTML = `<img src="${profiles[ev.pubkey].picture}" class="w-full h-full object-cover">`;
+                    }
+                    renderContacts();
+                    if (currentChatPk === ev.pubkey) updateChatHeader();
+                } catch(e) {}
+            }
+
+            if (ev.kind === 3 && ev.pubkey === pubKeyHex) {
+                contacts = [...new Set(ev.tags.filter(t => t[0] === 'p').map(t => t[1]))];
+                if (contacts.length > 0) ws.send(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: contacts }]));
+                renderContacts();
+            }
+
+            if (ev.kind === 5) {
+                let deletedIds = ev.tags.filter(t => t[0] === 'e').map(t => t[1]);
+                deletedIds.forEach(id => hiddenMsgsSet.add(id));
+                syncLocalEncryptedCache();
+
+                let isChanged = false;
+                for (let pk in messages) {
+                    let oldLen = messages[pk].length;
+                    messages[pk] = messages[pk].filter(m => !hiddenMsgsSet.has(m.id));
+                    if (messages[pk].length !== oldLen) isChanged = true;
+                }
+                if (isChanged) {
+                    if (currentChatPk) renderMessages();
+                    renderContacts();
+                }
+                return;
+            }
+
+            if (ev.kind === 4) {
+                if (hiddenMsgsSet.has(ev.id)) return;
+                try {
+                    let peerPk = ev.pubkey === pubKeyHex ? ev.tags.find(t => t[0] === 'p')[1] : ev.pubkey;
+                    if (!peerPk) return;
+
+                    let decryptedText = await nt.nip04.decrypt(privKeyHex, peerPk, ev.content);
+
+                    if (!messages[peerPk]) messages[peerPk] = [];
+                    if (!messages[peerPk].find(m => m.id === ev.id)) {
+
+                        // 智能判定是否为"真正的新未读"：只有当消息的时间戳 >= 本地原有缓存最新的那条时才算
+                        let isNewRealTimeMsg = true;
+                        if (messages[peerPk].length > 0) {
+                            let lastMsgTime = messages[peerPk][messages[peerPk].length - 1].time;
+                            if (ev.created_at < lastMsgTime) isNewRealTimeMsg = false;
+                        }
+
+                        // 把消息加入缓存
+                        messages[peerPk].push({ id: ev.id, sender: ev.pubkey, text: decryptedText, time: ev.created_at });
+                        messages[peerPk].sort((a, b) => a.time - b.time);
+
+                        // 若是新消息，且不是当前在聊的对象，且不是自己发出去的，则未读 +1
+                        if (isNewRealTimeMsg && peerPk !== currentChatPk && ev.pubkey !== pubKeyHex) {
+                            unreadCounts[peerPk] = (unreadCounts[peerPk] || 0) + 1;
+                        }
+
+                        syncLocalEncryptedCache();
+                        if (currentChatPk === peerPk) {
+                            renderMessages();
+                        }
+                        // 更新联系人列表（用于排序置顶与刷新红点）
+                        renderContacts();
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // ================= 聊天交互功能 =================
+        function handleTouchStart(e, id, isMe) {
+            if (isSelectMode) return;
+            touchTimer = setTimeout(() => { showMsgActionModal(id, isMe); touchTimer = null; }, 500);
+        }
+        function handleTouchEnd() { if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; } }
+        function handleRightClick(e, id, isMe) { e.preventDefault(); if (!isSelectMode) showMsgActionModal(id, isMe); }
+
+        function handleMsgClick(id) {
+            if (!isSelectMode) return;
+            selectedMsgIds.has(id) ? selectedMsgIds.delete(id) : selectedMsgIds.add(id);
+            document.getElementById('select-count').innerText = selectedMsgIds.size;
+            renderMessages();
+        }
+
+        function showMsgActionModal(id, isMe) {
+            currentActionMsgId = id; currentActionIsMe = isMe;
+            document.getElementById('btn-recall').style.display = isMe ? 'block' : 'none';
+            document.getElementById('msg-action-modal').classList.remove('hidden');
+            setTimeout(() => { document.getElementById('msg-action-content').classList.remove('translate-y-full'); }, 10);
+        }
+
+        function closeMsgActionModal(e) {
+            if (e && e.target !== document.getElementById('msg-action-modal')) return;
+            document.getElementById('msg-action-content').classList.add('translate-y-full');
+            setTimeout(() => { document.getElementById('msg-action-modal').classList.add('hidden'); }, 200);
+        }
+
+        function openSelectCopyModal(text) {
+            document.getElementById('select-copy-text').innerText = text;
+            document.getElementById('select-copy-modal').classList.remove('hidden');
+        }
+
+        function closeSelectCopyModal() {
+            document.getElementById('select-copy-modal').classList.add('hidden');
+        }
+
+        async function doAction(type) {
+            closeMsgActionModal();
+            let id = currentActionMsgId;
+            if (!id || !currentChatPk) return;
+
+            if (type === 'delete') {
+                hiddenMsgsSet.add(id);
+                messages[currentChatPk] = messages[currentChatPk].filter(m => m.id !== id);
+                syncLocalEncryptedCache(); renderMessages(); renderContacts();
+            } else if (type === 'recall' && currentActionIsMe) {
+                await publishEvent(5, "recall", [["e", id], ["p", currentChatPk]]);
+                hiddenMsgsSet.add(id);
+                messages[currentChatPk] = messages[currentChatPk].filter(m => m.id !== id);
+                syncLocalEncryptedCache(); renderMessages(); renderContacts();
+            } else if (type === 'multi') {
+                isSelectMode = true; selectedMsgIds.clear(); selectedMsgIds.add(id);
+                document.getElementById('chat-input-area').classList.add('hidden');
+                document.getElementById('select-action-area').classList.remove('hidden');
+                document.getElementById('select-count').innerText = selectedMsgIds.size;
+                renderMessages();
+            } else if (type === 'copy') {
+                let m = messages[currentChatPk].find(msg => msg.id === id);
+                if (m) {
+                    copyText(m.text);
+                    alert('已复制！');
+                }
+            } else if (type === 'select_copy') {
+                let m = messages[currentChatPk].find(msg => msg.id === id);
+                if (m) {
+                    openSelectCopyModal(m.text);
+                }
+            }
+        }
+
+        function exitSelectMode() {
+            isSelectMode = false; selectedMsgIds.clear();
+            document.getElementById('select-action-area').classList.add('hidden');
+            document.getElementById('chat-input-area').classList.remove('hidden');
+            renderMessages();
+        }
+
+        function deleteSelectedLocally() {
+            if (selectedMsgIds.size === 0) return;
+            if (!confirm(`确定在本地删除这 ${selectedMsgIds.size} 条消息吗？\n(这不会影响对方的显示)`)) return;
+            selectedMsgIds.forEach(id => hiddenMsgsSet.add(id));
+            messages[currentChatPk] = messages[currentChatPk].filter(m => !hiddenMsgsSet.has(m.id));
+            syncLocalEncryptedCache(); exitSelectMode();
+        }
+
+        function clearCurrentChatHistory() {
+            if (!currentChatPk) return;
+            let msgs = messages[currentChatPk] || [];
+            if (msgs.length === 0) return alert("暂无聊天记录");
+            if (!confirm("确定要清空与该联系人的所有本地消息记录吗？\n(清空后无法恢复，且不影响对方界面)")) return;
+            msgs.forEach(m => hiddenMsgsSet.add(m.id));
+            messages[currentChatPk] = [];
+            unreadCounts[currentChatPk] = 0; // 清空记录同时清空未读
+            syncLocalEncryptedCache(); renderMessages(); renderContacts();
+        }
+
+        function renderContacts() {
+            const list = document.getElementById('contacts-list');
+            list.innerHTML = '';
+
+            // 按照最新消息时间倒序排列（最新的消息置顶排在最上面）
+            let sortedContacts = [...contacts].sort((a, b) => {
+                let msgsA = messages[a] || [];
+                let msgsB = messages[b] || [];
+                let timeA = msgsA.length > 0 ? msgsA[msgsA.length - 1].time : 0;
+                let timeB = msgsB.length > 0 ? msgsB[msgsB.length - 1].time : 0;
+                return timeB - timeA;
+            });
+
+            sortedContacts.forEach(pk => {
+                let prof = profiles[pk] || { name: nt.nip19.npubEncode(pk).substring(0, 10) + '...' };
+                let isCurrent = (currentChatPk === pk);
+                let div = document.createElement('div');
+                div.className = `p-3 md:p-4 flex items-center space-x-3 cursor-pointer border-b border-gray-100 transition ${isCurrent ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50 border-l-4 border-transparent active:bg-gray-100'}`;
+                div.onclick = () => selectContact(pk);
+
+                // 未读红点渲染
+                let unread = unreadCounts[pk] || 0;
+                let unreadBadge = unread > 0 ? `<div class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[20px] h-[20px] flex items-center justify-center rounded-full border-2 border-white shadow-sm px-1">${unread > 99 ? '99+' : unread}</div>` : '';
+
+                let avatarHtml = `
+                    <div class="relative shrink-0">
+                        ${prof.picture ? `<img src="${prof.picture}" class="w-12 h-12 rounded-full object-cover">` : `<div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white">${prof.name.substring(0,1)}</div>`}
+                        ${unreadBadge}
+                    </div>
+                `;
+
+                let msgs = messages[pk] || [];
+                let lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].text.substring(0, 20) : '...';
+
+                div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 text-base md:text-sm truncate">${prof.name}</div><div class="text-sm md:text-xs text-gray-500 truncate mt-0.5">${escapeHTML(lastMsg)}</div></div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function selectContact(pk) {
+            currentChatPk = pk;
+
+            // 点击进入聊天，清空该联系人的未读红点并持久化
+            if (unreadCounts[pk]) {
+                unreadCounts[pk] = 0;
+                syncLocalEncryptedCache();
+            }
+
+            exitSelectMode();
+            renderContacts();
+            updateChatHeader();
+            document.getElementById('welcome-area').classList.add('hidden');
+            document.getElementById('chat-header').classList.remove('hidden');
+            document.getElementById('message-list').classList.remove('hidden');
+            document.getElementById('chat-input-area').classList.remove('hidden');
+            document.getElementById('chat-area').classList.remove('translate-x-full');
+            renderMessages();
+        }
+
+        function closeChat() {
+            exitSelectMode(); document.getElementById('chat-area').classList.add('translate-x-full');
+            currentChatPk = null; renderContacts();
+        }
+
+        function updateChatHeader() {
+            let prof = profiles[currentChatPk] || { name: '未知' };
+            document.getElementById('chat-name').innerText = prof.name;
+            document.getElementById('chat-pubkey').innerText = nt.nip19.npubEncode(currentChatPk);
+        }
+
+        function renderMessages() {
+            const list = document.getElementById('message-list');
+            list.innerHTML = '';
+            let msgs = messages[currentChatPk] || [];
+
+            msgs.forEach(m => {
+                let isMe = m.sender === pubKeyHex;
+                let isSelected = selectedMsgIds.has(m.id);
+                let timeStr = new Date(m.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                let wrapper = document.createElement('div');
+                wrapper.className = `flex w-full items-end ${isSelectMode ? 'cursor-pointer hover:bg-gray-100 p-1 rounded-lg transition-colors' : ''}`;
+                if (isSelectMode) wrapper.onclick = () => handleMsgClick(m.id);
+
+                let selectHtml = isSelectMode ? `<div class="w-8 shrink-0 mr-1 flex items-center justify-center"><div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}">${isSelected ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}</div></div>` : '';
+
+                let bubbleHtml = `
+                    <div class="flex flex-1 ${isMe ? 'justify-end' : 'justify-start'} no-select"
+                         ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})" ontouchend="handleTouchEnd()" oncontextmenu="handleRightClick(event, '${m.id}', ${isMe})">
+                        <div class="max-w-[75%] md:max-w-md rounded-2xl p-3 shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100'}">
+                            <div class="text-[15px] whitespace-pre-wrap break-words leading-relaxed">${escapeHTML(m.text)}</div>
+                            <div class="text-[11px] text-right mt-1.5 ${isMe ? 'text-blue-200' : 'text-gray-400'}">${timeStr}</div>
+                        </div>
+                    </div>
+                `;
+                wrapper.innerHTML = selectHtml + bubbleHtml;
+                list.appendChild(wrapper);
+            });
+            list.scrollTop = list.scrollHeight;
+        }
+
+        async function sendMessage() {
+            let input = document.getElementById('msg-input');
+            let text = input.value.trim();
+            if (!text || !currentChatPk) return;
+            input.value = ''; input.style.height = '';
+
+            let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, text);
+            let ev = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
+
+            if (!messages[currentChatPk]) messages[currentChatPk] = [];
+            messages[currentChatPk].push({ id: ev.id, sender: pubKeyHex, text: text, time: ev.created_at });
+            syncLocalEncryptedCache();
+            renderMessages();
+            renderContacts(); // 发送新消息后触发排序与视图更新
+        }
+
+        function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth >= 768) { e.preventDefault(); sendMessage(); } }
+
+        async function addContact() {
+            let val = document.getElementById('new-contact-input').value.trim();
+            if (!val) return;
+            try {
+                let pkToAdd = val.startsWith('npub') ? nt.nip19.decode(val).data : val;
+                if (pkToAdd === pubKeyHex || contacts.includes(pkToAdd)) return alert("无效操作或已存在");
+                contacts.push(pkToAdd); document.getElementById('new-contact-input').value = '';
+                await publishEvent(3, "", contacts.map(c => ["p", c])); renderContacts();
+            } catch (e) { alert("公钥格式错误"); }
+        }
+
+        async function removeCurrentContact() {
+            if (!confirm("确定要删除此联系人吗？")) return;
+            contacts = contacts.filter(c => c !== currentChatPk);
+            delete unreadCounts[currentChatPk]; // 删除联系人同时清理未读数据
+            await publishEvent(3, "", contacts.map(c => ["p", c]));
+            closeChat();
+        }
+
+        // ================= 个人资料与设置 =================
+        function showProfileModal() {
+            document.getElementById('profile-modal').classList.remove('hidden');
+            let p = profiles[pubKeyHex] || {};
+            document.getElementById('edit-name').value = p.name || '';
+            document.getElementById('edit-avatar').value = p.picture || '';
+            document.getElementById('edit-relay').value = currentRelayUrl;
+
+            let skInput = document.getElementById('my-nsec-display');
+            skInput.value = "••••••••••••••";
+            skInput.type = 'password';
+            document.getElementById('btn-toggle-key').innerText = '显示';
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profile-modal').classList.add('hidden');
+            let skInput = document.getElementById('my-nsec-display');
+            skInput.value = "••••••••••••••";
+            skInput.type = 'password';
+            document.getElementById('btn-toggle-key').innerText = '显示';
+        }
+
+        async function saveProfile() {
+            let newRelay = document.getElementById('edit-relay').value.trim();
+            if (newRelay && newRelay !== currentRelayUrl) {
+                currentRelayUrl = newRelay; localStorage.setItem('dage_relay', currentRelayUrl); initRelayConnection();
+            }
+            let name = document.getElementById('edit-name').value.trim();
+            let pic = document.getElementById('edit-avatar').value.trim();
+            if (name || pic) await publishEvent(0, JSON.stringify({ name, picture: pic }));
+            closeProfileModal();
+        }
+
+        function copyText(txt) {
+            let textarea = document.createElement('textarea');
+            textarea.value = txt;
+            textarea.style.position = 'fixed';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+        function escapeHTML(str) { return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)); }
+    </script>
+</body>
+</html>
