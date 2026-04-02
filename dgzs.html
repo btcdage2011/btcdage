@@ -7,9 +7,14 @@
     <script src="js/chart.js"></script>
     <script src="js/chartjs-plugin-zoom.js"></script>
     <style>
+        body {
+            font-family: sans-serif;
+        }
         #chart-container {
             width: 90%;
-            margin: 0 auto;
+            margin: 20px auto;
+            position: relative;
+            height: 80vh;
         }
 
         .info-section {
@@ -17,14 +22,14 @@
             margin-bottom: 14px;
         }
 
+        .info-section h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
         .info-section h2 {
             margin: 10px 0;
             font-size: 1.5em;
-        }
-
-        .controls {
-            text-align: center;
-            margin-bottom: 20px;
         }
 
         .description {
@@ -58,17 +63,29 @@
             background-color: #0056b3;
         }
         nav {
-            text-align: center; /* 导航栏居中 */
-            margin-bottom: 20px; /* 与内容的间距 */
+            text-align: center;
+            margin-bottom: 20px;
         }
         nav a {
-            text-decoration: none; /* 去掉下划线 */
-            color: #007BFF; /* 超链接颜色 */
+            text-decoration: none;
+            color: #007BFF;
             font-size: 16px;
-            margin: 0 15px; /* 每个链接之间的间距 */
+            margin: 0 15px;
         }
         nav a:hover {
-            text-decoration: underline; /* 鼠标悬停时显示下划线 */
+            text-decoration: underline;
+        }
+
+        .chartjs-tooltip {
+           position: absolute;
+           background-color: rgba(255, 255, 255, 0.9);
+           border: 1px solid #ccc;
+           padding: 5px;
+           border-radius: 5px;
+           pointer-events: none;
+           z-index: 10;
+           white-space: nowrap;
+           font-size: 12px;
         }
     </style>
 </head>
@@ -80,6 +97,7 @@
     </div>
     <div id="chart-container">
         <canvas id="chart"></canvas>
+        <div id="customTooltip" class="chartjs-tooltip" style="display: none;"></div>
     </div>
     <button class="reset-zoom-btn" onclick="resetZoom()">重置缩放</button>
 
@@ -87,226 +105,385 @@
         <h3>达哥指数说明：</h3>
         <p><strong>冷淡 (< 0):</strong> 市场情绪非常低迷，可能处于冷淡阶段。可按策略定投加大定投额度。</p>
         <p><strong>兴趣 (1 - 20):</strong> 市场情绪有一定的回暖，交易量略有上升。可放心定额定投。</p>
-        <p><strong>乐观 (20 - 40):</strong> 市场情绪逐渐变得乐观，交易活跃。可按策略正常定投。</p>
         <p><strong>热烈 (40 - 75):</strong> 市场非常活跃，投资者情绪高涨。可适当减少定投份额。</p>
         <p><strong>过热 (75 - 90):</strong> 市场热度过高，投资者过于乐观，可能存在过度投机的风险。建议进一步减少定投份额。</p>
         <p><strong>疯狂 (90 - 100):</strong> 市场情绪达到极致，投资者过于狂热，风险极大。建议停止定投等待机会。</p>
     </div>
 
     <script>
+        fetch('nav.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('navbar').innerHTML = data;
+            })
+            .catch(error => console.error('Error loading navigation:', error));
 
-        // 动态加载导航栏
-    fetch('nav.html')
-        .then(response => response.text())
-        .then(data => {
-            document.getElementById('navbar').innerHTML = data;
-        })
-        .catch(error => console.error('Error loading navigation:', error));
-        
-    const getLastFriday = (year, month) => {
-        const lastDayOfMonth = new Date(year, month, 0);
-        const dayOfWeek = lastDayOfMonth.getDay();
-        const offset = (dayOfWeek - 6 + 7) % 7;
-        lastDayOfMonth.setDate(lastDayOfMonth.getDate() - offset);
-        return lastDayOfMonth;
-    };
+        const getLastFriday = (year, month) => {
+            const lastDayOfMonth = new Date(year, month, 0);
+            const dayOfWeek = lastDayOfMonth.getDay();
+            const offset = (dayOfWeek - 6 + 7) % 7;
+            lastDayOfMonth.setDate(lastDayOfMonth.getDate() - offset);
+            return lastDayOfMonth;
+        };
 
-    const getciji = (year, month, jg) => {
-        if (jg === 0) {
-            if ([1, 2, 3].includes(month)) return { year, month: 6 };
-            if ([4, 5, 6].includes(month)) return { year, month: 9 };
-            if ([7, 8, 9].includes(month)) return { year, month: 12 };
-            if ([10, 11, 12].includes(month)) return { year: year + 1, month: 3 };
-        } else {
-            if (month === 3) return { year, month: 9 };
-            if (month === 6) return { year, month: 12 };
-            if (month === 9) return { year: year + 1, month: 3 };
-            if (month === 12) return { year: year + 1, month: 6 };
-        }
-    };
+        const getciji = (year, month, jg) => {
+            if (jg === 0) {
+                if ([1, 2, 3].includes(month)) return { year, month: 6 };
+                if ([4, 5, 6].includes(month)) return { year, month: 9 };
+                if ([7, 8, 9].includes(month)) return { year, month: 12 };
+                if ([10, 11, 12].includes(month)) return { year: year + 1, month: 3 };
+            } else {
+                if (month === 3) return { year, month: 9 };
+                if (month === 6) return { year, month: 12 };
+                if (month === 9) return { year: year + 1, month: 3 };
+                if (month === 12) return { year: year + 1, month: 6 };
+            }
+            return { year, month };
+          };
 
-    const getNextSeasonContractCode = (date) => {
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
 
-        let jcyear, jcmonth;
+        const getNextSeasonContractCode = (date) => {
 
-        if ([3, 6, 9, 12].includes(month)) {
-            const currentSeasonLastFriday = getLastFriday(year, month);
-            if (date > currentSeasonLastFriday) {
-                ({ year: jcyear, month: jcmonth } = getciji(year, month, 1));
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+
+            let jcyear, jcmonth;
+
+            if ([3, 6, 9, 12].includes(month)) {
+                const currentSeasonLastFriday = getLastFriday(year, month);
+                if (date > currentSeasonLastFriday) {
+                    ({ year: jcyear, month: jcmonth } = getciji(year, month, 1));
+                } else {
+                    ({ year: jcyear, month: jcmonth } = getciji(year, month, 0));
+                }
             } else {
                 ({ year: jcyear, month: jcmonth } = getciji(year, month, 0));
             }
-        } else {
-            ({ year: jcyear, month: jcmonth } = getciji(year, month, 0));
+
+            const nextSeasonDate = getLastFriday(jcyear, jcmonth);
+            return `BTCUSDT_${nextSeasonDate.toISOString().split('T')[0].replace(/-/g, '').slice(2)}`;
+        };
+
+        const fetchData = async () => {
+            try {
+                const response = await fetch('https://122.51.252.52:17926/api/data');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('latest-data').innerHTML = '数据加载失败，请稍后再试。';
+                return [];
+            }
+        };
+
+        const getStatus = (dgzIndex) => {
+            if (dgzIndex < 0) return "冷淡";
+            if (dgzIndex < 20) return "兴趣";
+            if (dgzIndex < 40) return "乐观";
+            if (dgzIndex < 75) return "热烈";
+            if (dgzIndex < 90) return "过热";
+            return "疯狂";
+        };
+
+        let chartInstance;
+        let customTooltipEl;
+
+        const renderChart = async () => {
+            const data = await fetchData();
+
+            if (!data || data.length === 0) {
+                console.error('接收到的数据为空或无效，无法绘制图表。');
+                document.getElementById('latest-data').innerHTML = '无可用数据显示。';
+                return;
+            }
+
+            const labels = data.map(item => item.date);
+            // Ensure prices are numbers for calculations
+            const spotPrices = data.map(item => parseFloat(item.spot_price));
+            const futurePrices = data.map(item => parseFloat(item.future_price));
+            const ethPrices = data.map(item => item.eth_spot_price ? parseFloat(item.eth_spot_price) : null);
+
+            const ethBtcRatios = data.map((item, i) => {
+                const ethPrice = ethPrices[i];
+                const btcPrice = spotPrices[i];
+                return (btcPrice && ethPrice && btcPrice !== 0) ? (ethPrice / btcPrice) : null;
+            });
+
+
+            const dgzs = futurePrices.map((futurePrice, i) => {
+                const spotPrice = spotPrices[i];
+
+                if (spotPrice === null || futurePrice === null || spotPrice === 0) return null;
+
+                const deviation = (futurePrice - spotPrice) / spotPrice;
+                const adjustedDeviation = deviation * 5 * 100;
+                const date = new Date(labels[i]);
+                const nextSeasonDate = getNextSeasonContractCode(new Date(labels[i])).split('_')[1];
+                const nextSeasonExpiryDate = new Date(`20${nextSeasonDate.slice(0, 2)}-${nextSeasonDate.slice(2, 4)}-${nextSeasonDate.slice(4, 6)}`);
+                const daysToNextSeason = Math.floor((nextSeasonExpiryDate - date) / (1000 * 60 * 60 * 24));
+
+                const A = Math.min(1, Math.max(1/180, daysToNextSeason / 180));
+                return adjustedDeviation / A ;
+            });
+
+
+            if (labels.length > 0) {
+                const latestDate = labels[labels.length - 1];
+                const latestSpotPrice = spotPrices[spotPrices.length - 1];
+                const latestDgz = dgzs[dgzs.length - 1];
+                const latestStatus = latestDgz !== null ? getStatus(latestDgz) : "N/A";
+
+                const latestDataElement = document.getElementById('latest-data');
+                latestDataElement.innerHTML = `
+                    今日: ${latestDate} |
+                    现货价: ${latestSpotPrice !== null ? latestSpotPrice.toFixed(2) : 'N/A'} |
+                    达哥指数: ${latestDgz !== null ? latestDgz.toFixed(2) : 'N/A'} (${latestStatus})
+                `;
+            }
+
+            const ctx = document.getElementById('chart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'BTC现货价格',
+                            data: spotPrices,
+                            borderColor: 'blue',
+                            fill: false,
+                            yAxisID: 'y1',
+                        },
+                        {
+                            label: 'BTC次季合约价格',
+                            data: futurePrices,
+                            borderColor: 'orange',
+                            fill: false,
+                            yAxisID: 'y1',
+                        },
+                        {
+                            label: '达哥指数',
+                            data: dgzs,
+                            borderColor: 'green',
+                            fill: false,
+                            yAxisID: 'y2',
+                        },
+                        {
+                            label: 'ETH价格',
+                            data: ethPrices,
+                            borderColor: 'purple',
+                            fill: false,
+                            yAxisID: 'y3',
+                            hidden: true
+                        },
+                        {
+                            label: 'EB汇率',
+                            data: ethBtcRatios,
+                            borderColor: 'red',
+                            fill: false,
+                            yAxisID: 'y4',
+                            hidden: true
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                         mode: 'index',
+                         intersect: false,
+                    },
+                    plugins: {
+                        tooltip: {
+                            enabled: false
+                        },
+                        legend: {
+                          onClick: (event, legendItem, legend) => {
+                              const datasetIndex = legendItem.datasetIndex;
+                              const meta = legend.chart.getDatasetMeta(datasetIndex);
+                              meta.hidden = !meta.hidden;
+
+                              const yAxisID = legend.chart.data.datasets[datasetIndex].yAxisID;
+                              const scale = legend.chart.options.scales[yAxisID];
+                              if (scale) {
+                                scale.display = legend.chart.data.datasets.some(
+                                    (d, i) => d.yAxisID === yAxisID && !legend.chart.getDatasetMeta(i).hidden
+                                );
+                              }
+                              legend.chart.update();
+                          },
+                        },
+                        zoom: {
+                            pan: { enabled: true, mode: 'x', threshold: 5 },
+                            zoom: {
+                                wheel: { enabled: true, speed: 0.1 },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            type: 'category',
+                            title: {
+                                display: true,
+                                text: '日期'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            title: { text: 'BTC价格 (USDT)', display: true },
+                            position: 'left',
+                        },
+                        y2: {
+                            type: 'linear',
+                            display: true,
+                            title: { text: '达哥指数', display: true },
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                        },
+                        y3: {
+                            type: 'linear',
+                            display: false,
+                            title: { text: 'ETH价格 (USDT)', display: true },
+                            position: 'left',
+                            grid: { drawOnChartArea: false },
+                        },
+                        y4: {
+                            type: 'linear',
+                            display: false,
+                            title: { text: 'EB汇率', display: true },
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                        },
+                    },
+                },
+            });
+
+            customTooltipEl = document.getElementById('customTooltip');
+            const chartCanvas = document.getElementById('chart');
+
+            chartCanvas.removeEventListener('mousemove', handleChartHover);
+            chartCanvas.removeEventListener('mouseout', hideCustomTooltip);
+
+            chartCanvas.addEventListener('mousemove', handleChartHover);
+            chartCanvas.addEventListener('mouseout', hideCustomTooltip);
+        };
+
+        function hideCustomTooltip() {
+            if (customTooltipEl) {
+                customTooltipEl.style.display = 'none';
+            }
         }
 
-        const nextSeasonDate = getLastFriday(jcyear, jcmonth);
-        return `BTCUSDT_${nextSeasonDate.toISOString().split('T')[0].replace(/-/g, '').slice(2)}`;
-    };
+        function handleChartHover(event) {
+            if (!chartInstance || !customTooltipEl) {
+                return;
+            }
 
-    const fetchData = async () => {
-        const response = await fetch('https://122.51.252.52:17926/api/data');
-        const data = await response.json();
-        return data;
-    };
+            const canvas = chartInstance.canvas;
+            const chartArea = chartInstance.chartArea;
 
-    const getStatus = (dgzIndex) => {
-        if (dgzIndex < 0) return "冷淡";
-        if (dgzIndex < 20) return "兴趣";
-        if (dgzIndex < 40) return "乐观";
-        if (dgzIndex < 75) return "热烈";
-        if (dgzIndex < 90) return "过热";
-        return "疯狂";
-    };
+            if (!canvas || !chartArea) {
+                hideCustomTooltip();
+                return;
+            }
 
-    const renderChart = async () => {
-        const data = await fetchData();
+            const canvasRect = canvas.getBoundingClientRect();
+            const mouseClientX = event.clientX;
+            const mouseClientY = event.clientY;
+            const mouseCanvasX = mouseClientX - canvasRect.left;
+            const mouseCanvasY = mouseClientY - canvasRect.top;
 
-        if (data.length === 0) {
-            console.error('接收到的数据为空，无法绘制图表。');
-            return;
+            if (mouseCanvasX < chartArea.left || mouseCanvasX > chartArea.right || mouseCanvasY < chartArea.top || mouseCanvasY > chartArea.bottom) {
+                hideCustomTooltip();
+                return;
+            }
+
+            const points = chartInstance.getElementsAtEventForMode(event, 'index', { intersect: false }, true);
+            let xIndex = -1;
+            if (points.length > 0) xIndex = points[0].index;
+
+            if (xIndex === -1 || xIndex >= chartInstance.data.labels.length) {
+                hideCustomTooltip();
+                return;
+            }
+
+            let tooltipText = `<strong>${chartInstance.data.labels[xIndex]}</strong><br>`;
+            let hasVisibleData = false;
+            chartInstance.data.datasets.forEach((dataset, i) => {
+                const meta = chartInstance.getDatasetMeta(i);
+                if (!meta.hidden) {
+                    const value = dataset.data[xIndex];
+                    if (value !== null && value !== undefined) {
+                        let displayValue = value;
+                        if (typeof value === 'number') {
+                            if (dataset.label === 'EB汇率') displayValue = value.toFixed(5);
+                            else if (dataset.label === '达哥指数') displayValue = `${value.toFixed(2)} (${getStatus(value)})`;
+                            else displayValue = value.toFixed(2);
+                        }
+                        tooltipText += `${dataset.label}: ${displayValue}<br>`;
+                        hasVisibleData = true;
+                    }
+                }
+            });
+
+            if (!hasVisibleData) {
+                hideCustomTooltip();
+                return;
+            }
+
+            customTooltipEl.innerHTML = tooltipText;
+            customTooltipEl.style.display = 'block';
+
+            const tooltipWidth = customTooltipEl.offsetWidth;
+            const tooltipHeight = customTooltipEl.offsetHeight;
+            const spacing = 10;
+            const edgeMargin = 5;
+
+
+            let newLeft = mouseClientX - tooltipWidth - spacing;
+            let newTop = mouseClientY - tooltipHeight - spacing;
+
+            if (newLeft < edgeMargin) {
+                newLeft = mouseClientX + spacing;
+
+            }
+
+            if (newLeft + tooltipWidth > window.innerWidth - edgeMargin) {
+                newLeft = window.innerWidth - tooltipWidth - edgeMargin;
+
+                if (newLeft < edgeMargin) newLeft = edgeMargin;
+            }
+
+            if (newTop < edgeMargin) {
+                newTop = mouseClientY + spacing;
+            }
+            if (newTop + tooltipHeight > window.innerHeight - edgeMargin) {
+                newTop = window.innerHeight - tooltipHeight - edgeMargin;
+                if (newTop < edgeMargin) newTop = edgeMargin;
+            }
+
+            customTooltipEl.style.left = newLeft + 'px';
+            customTooltipEl.style.top = newTop + 'px';
         }
 
-        const labels = data.map(item => item.date);
-        const spotPrices = data.map(item => item.spot_price);
-        const futurePrices = data.map(item => item.future_price);
-        const ethPrices = data.map(item => item.eth_spot_price);
-        const ethBtcRatios = data.map((item, i) => (parseFloat(item.eth_spot_price) / parseFloat(spotPrices[i])).toFixed(5));
-        const dgzs = futurePrices.map((futurePrice, i) => {
-            const spotPrice = spotPrices[i];
-            const deviation = (futurePrice - spotPrice) / spotPrice;
-            const adjustedDeviation = deviation * 5 * 100;
-            const date = new Date(labels[i]);
-            const nextSeasonDate = getNextSeasonContractCode(new Date(labels[i])).split('_')[1];
-            const nextSeasonExpiryDate = new Date(`20${nextSeasonDate.slice(0, 2)}-${nextSeasonDate.slice(2, 4)}-${nextSeasonDate.slice(4, 6)}`);
-            const daysToNextSeason = Math.floor((nextSeasonExpiryDate - date) / (1000 * 60 * 60 * 24));
-            const A = Math.min(1, Math.max(1/180, daysToNextSeason / 180));
-            return adjustedDeviation / A ;
-        });
+        const resetZoom = () => {
+            if (chartInstance) {
+                chartInstance.resetZoom();
+            }
+        };
 
-        // 更新最近一天的数据
-        const latestDate = labels[labels.length - 1];
-        const latestSpotPrice = spotPrices[spotPrices.length - 1];
-        const latestFuturePrice = futurePrices[futurePrices.length - 1];
-        const latestDgz = dgzs[dgzs.length - 1];
-        const latestStatus = getStatus(latestDgz);
-
-            const latestDataElement = document.getElementById('latest-data');
-            latestDataElement.innerHTML = `
-                （每日更新）今日: ${latestDate} |
-                现货价: ${latestSpotPrice.toFixed(2)} |
-                达哥指数: ${latestDgz.toFixed(2)} (${latestStatus})
-            `;
-
-                        const ctx = document.getElementById('chart').getContext('2d');
-                        const chart = new Chart(ctx, {
-                            type: 'line',
-                            data: {
-                                labels: labels,
-                                datasets: [
-                                    {
-                                        label: 'BTC现货价格',
-                                        data: spotPrices,
-                                        borderColor: 'blue',
-                                        fill: false,
-                                        yAxisID: 'y1',
-                                    },
-                                    {
-                                        label: 'BTC次季合约价格',
-                                        data: futurePrices,
-                                        borderColor: 'orange',
-                                        fill: false,
-                                        yAxisID: 'y1',
-                                    },
-                                    {
-                                        label: '达哥指数',
-                                        data: dgzs,
-                                        borderColor: 'green',
-                                        fill: false,
-                                        yAxisID: 'y2',
-                                    },
-                                    {
-                                        label: 'ETH价格',
-                                        data: ethPrices,
-                                        borderColor: 'purple',
-                                        fill: false,
-                                        yAxisID: 'y3',
-                                        hidden: true
-                                    },
-                                    {
-                                        label: 'EB汇率',
-                                        data: ethBtcRatios,
-                                        borderColor: 'red',
-                                        fill: false,
-                                        yAxisID: 'y4',
-                                        hidden: true
-                                    },
-                                ],
-                            },
-                            options: {
-                                responsive: true,
-                                plugins: {
-                                  legend: {
-                                      onClick: (event, legendItem) => {
-                                          const datasetIndex = legendItem.datasetIndex;
-                                          const dataset = chart.data.datasets[datasetIndex];
-                                          dataset.hidden = !dataset.hidden;
-
-                                          // Handle Y-axis visibility based on dataset visibility
-                                          const yAxisID = dataset.yAxisID;
-                                          chart.options.scales[yAxisID].display = chart.data.datasets.some(
-                                              (d) => d.yAxisID === yAxisID && !d.hidden
-                                          );
-
-                                          chart.update();
-                                      },
-                                  },
-                                    zoom: {
-                                        pan: { enabled: true, mode: 'x' },
-                                        zoom: {
-                                            wheel: { enabled: true },
-                                            pinch: { enabled: true },
-                                            mode: 'x',
-                                        },
-                                    },
-                                },
-                                scales: {
-                                    y1: {
-                                        type: 'linear',
-                                        display: true,
-                                        title: { text: 'BTC价格 (USDT)', display: true },
-                                    },
-                                    y2: {
-                                        type: 'linear',
-                                        display: true,
-                                        title: { text: '达哥指数', display: true },
-                                        position: 'right',
-                                    },
-                                    y3: {
-                                        type: 'linear',
-                                        display: false,
-                                        title: { text: 'ETH价格 (USDT)', display: true },
-                                    },
-                                    y4: {
-                                        type: 'linear',
-                                        display: false,
-                                        title: { text: 'EB汇率', display: true },
-                                        position: 'right', // 将达哥指数的Y轴移到右侧
-                                    },
-                                },
-                            },
-                        });
-
-
-                    };
-
-                    const resetZoom = () => {
-                        chart.resetZoom();
-                    };
-
-                    window.onload = renderChart;
-                </script>
-            </body>
-            </html>
+        window.onload = renderChart;
+    </script>
+</body>
+</html>
