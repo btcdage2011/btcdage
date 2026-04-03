@@ -399,132 +399,154 @@
         }
 
         // ================= WebCrypto NIP-44 (Python Compatible) =================
-        async function derivePythonNip44Key(privHex, pubHex) {
-            // 利用我们刚打上的补丁：getSharedSecretFull (无 padding、无截断、取完整的 33字节 compressed point)
-            let shared33 = (nt.nip44.utils.v2 || nt.nip44.utils).getSharedSecretFull(privHex, pubHex);
+                async function derivePythonNip44Key(privHex, pubHex) {
+                    let fullSharedSecret = null;
+                    const originalSubarray = Uint8Array.prototype.subarray;
+                    try {
+                        // 黑科技：利用闭包外拦截 nostr-tools 内部的 subarray 调用，
+                        // 以获取完整的 33字节 ECDH 共享点 (包含 Y 坐标的奇偶性)
+                        Uint8Array.prototype.subarray = function(start, end) {
+                            if (this.length === 33 && start === 1 && end === 33) {
+                                fullSharedSecret = new Uint8Array(this);
+                            }
+                            return originalSubarray.apply(this, arguments);
+                        };
 
-            // 执行 Python `ecdh()` 的默认行为：SHA256(compressed_point)
-            const sharedPointHash = new Uint8Array(await crypto.subtle.digest('SHA-256', shared33));
+                        let utilsObj = nt.nip44.utils;
+                        if (utilsObj.v2) utilsObj = utilsObj.v2;
+                        utilsObj.getConversationKey(privHex, pubHex);
+                    } finally {
+                        // 务必恢复原生方法，防止影响浏览器其他功能
+                        Uint8Array.prototype.subarray = originalSubarray;
+                    }
 
-            // 完美复刻 Python HKDF 参数
-            const keyMaterial = await crypto.subtle.importKey(
-                "raw", sharedPointHash, { name: "HKDF" }, false,["deriveBits"]
-            );
-            const salt = new TextEncoder().encode("nip44-v2");
-            const info = new Uint8Array(0);
+                    if (!fullSharedSecret) {
+                        throw new Error("Failed to intercept shared secret. Ensure nostr.bundle.js is correct.");
+                    }
 
-            const derivedBits = await crypto.subtle.deriveBits(
-                { name: "HKDF", hash: "SHA-256", salt: salt, info: info },
-                keyMaterial,
-                256 // 32 bytes
-            );
-            return new Uint8Array(derivedBits);
-        }
+                    // 执行 Python ecdh() 的默认行为：SHA256(compressed_point)
+                    const sharedPointHash = new Uint8Array(await crypto.subtle.digest('SHA-256', fullSharedSecret));
 
-        async function pythonNip44Encrypt(privHex, pubHex, plaintext) {
-            const key = await derivePythonNip44Key(privHex, pubHex);
-            const nonce = sodium.randombytes_buf(24);
-            const data = new TextEncoder().encode(plaintext);
+                    // 完美复刻 Python 端的 HKDF 参数
+                    const keyMaterial = await crypto.subtle.importKey(
+                        "raw", sharedPointHash, { name: "HKDF" }, false, ["deriveBits"]
+                    );
+                    const salt = new TextEncoder().encode("nip44-v2");
+                    const info = new Uint8Array(0);
 
-            // Python 端没有填充，直接使用 sodium 库裸跑 XChaCha20Poly1305
-            const ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
-                data, null, null, nonce, key
-            );
+                    const derivedBits = await crypto.subtle.deriveBits(
+                        { name: "HKDF", hash: "SHA-256", salt: salt, info: info },
+                        keyMaterial,
+                        256 // 256 bits = 32 bytes
+                    );
+                    return new Uint8Array(derivedBits);
+                }
 
-            const payload = new Uint8Array(1 + 24 + ciphertext.length);
-            payload[0] = 2; // version
-            payload.set(nonce, 1);
-            payload.set(ciphertext, 25);
+                async function pythonNip44Encrypt(privHex, pubHex, plaintext) {
+                    const key = await derivePythonNip44Key(privHex, pubHex);
+                    const nonce = sodium.randombytes_buf(24);
+                    const data = new TextEncoder().encode(plaintext);
 
-            return bytesToBase64(payload);
-        }
+                    // Python 端没有 padding，直接使用 sodium 库裸跑 XChaCha20Poly1305
+                    const ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+                        data, null, null, nonce, key
+                    );
 
-        async function pythonNip44Decrypt(privHex, pubHex, payloadB64) {
-            const key = await derivePythonNip44Key(privHex, pubHex);
-            let payload;
-            try { payload = base64ToBytes(payloadB64); } catch(e) { return null; }
-            if (payload.length < 41 || payload[0] !== 2) return null;
+                    const payload = new Uint8Array(1 + 24 + ciphertext.length);
+                    payload[0] = 2; // version
+                    payload.set(nonce, 1);
+                    payload.set(ciphertext, 25);
 
-            const nonce = payload.slice(1, 25);
-            const ciphertext = payload.slice(25);
+                    return bytesToBase64(payload);
+                }
 
-            try {
-                const plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
-                    null, ciphertext, null, nonce, key
-                );
-                return new TextDecoder().decode(plaintextBytes);
-            } catch(e) {
-                return null;
-            }
-        }
+                async function pythonNip44Decrypt(privHex, pubHex, payloadB64) {
+                    const key = await derivePythonNip44Key(privHex, pubHex);
+                    let payload;
+                    try { payload = base64ToBytes(payloadB64); } catch(e) { return null; }
+                    if (payload.length < 41 || payload[0] !== 2) return null;
 
-        // ================= NIP-59 (Gift Wrap) 底层复刻引擎 =================
-        async function makeGiftWrap(myPriv, targetPub, contentStr, kind=14, extraTags=[]) {
-            let now = Math.floor(Date.now() / 1000);
-            let myPub = nt.getPublicKey(myPriv);
+                    const nonce = payload.slice(1, 25);
+                    const ciphertext = payload.slice(25);
 
-            // 1. Rumor (Kind 14)
-            let rumor = {
-                pubkey: myPub,
-                created_at: now,
-                kind: kind,
-                tags: extraTags,
-                content: contentStr
-            };
-            rumor.id = nt.getEventHash(rumor);
+                    try {
+                        const plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+                            null, ciphertext, null, nonce, key
+                        );
+                        return new TextDecoder().decode(plaintextBytes);
+                    } catch(e) {
+                        return null; // 解密失败或 MAC 校验不通过
+                    }
+                }
 
-            // 2. Seal (Kind 13) - 使用 Python 兼容加密
-            let sealedContent = await pythonNip44Encrypt(myPriv, targetPub, JSON.stringify(rumor));
+                // ================= NIP-59 (Gift Wrap) 底层复刻引擎 =================
+                async function makeGiftWrap(myPriv, targetPub, contentStr, kind=14, extraTags=[]) {
+                    let now = Math.floor(Date.now() / 1000);
+                    let myPub = nt.getPublicKey(myPriv);
 
-            let seal = {
-                pubkey: myPub,
-                created_at: now,
-                kind: 13,
-                tags:[],
-                content: sealedContent
-            };
-            seal.id = nt.getEventHash(seal);
-            seal.sig = nt.getSignature(seal, myPriv);
+                    // 1. Rumor (Kind 14)
+                    let rumor = {
+                        pubkey: myPub,
+                        created_at: now,
+                        kind: kind,
+                        tags: extraTags,
+                        content: contentStr
+                    };
+                    rumor.id = nt.getEventHash(rumor);
 
-            // 3. Wrap (Kind 1059) - 使用临时私钥和 Python 兼容加密
-            let ephemeralPriv = nt.generatePrivateKey();
-            let ephemeralPub = nt.getPublicKey(ephemeralPriv);
+                    // 2. Seal (Kind 13) - 使用 Python 兼容加密
+                    let sealedContent = await pythonNip44Encrypt(myPriv, targetPub, JSON.stringify(rumor));
 
-            let wrappedContent = await pythonNip44Encrypt(ephemeralPriv, targetPub, JSON.stringify(seal));
+                    let seal = {
+                        pubkey: myPub,
+                        created_at: now,
+                        kind: 13,
+                        tags:[],
+                        content: sealedContent
+                    };
+                    seal.id = nt.getEventHash(seal);
+                    seal.sig = nt.getSignature(seal, myPriv);
 
-            let wrap = {
-                pubkey: ephemeralPub,
-                created_at: now,
-                kind: 1059,
-                tags: [["p", targetPub]],
-                content: wrappedContent
-            };
-            wrap.id = nt.getEventHash(wrap);
-            wrap.sig = nt.getSignature(wrap, ephemeralPriv);
+                    // 3. Wrap (Kind 1059) - 使用临时私钥和 Python 兼容加密
+                    let ephemeralPriv = nt.generatePrivateKey();
+                    let ephemeralPub = nt.getPublicKey(ephemeralPriv);
 
-            return { wrapEvent: wrap, rumorId: rumor.id, rumorEvent: rumor };
-        }
+                    let wrappedContent = await pythonNip44Encrypt(ephemeralPriv, targetPub, JSON.stringify(seal));
 
-        async function unwrapGift(myPriv, wrapEvent) {
-            try {
-                if (wrapEvent.kind !== 1059) return null;
-                let ephemeralPub = wrapEvent.pubkey;
+                    let wrap = {
+                        pubkey: ephemeralPub,
+                        created_at: now,
+                        kind: 1059,
+                        tags:[["p", targetPub]],
+                        content: wrappedContent
+                    };
+                    wrap.id = nt.getEventHash(wrap);
+                    wrap.sig = nt.getSignature(wrap, ephemeralPriv);
 
-                let sealJsonStr = await pythonNip44Decrypt(myPriv, ephemeralPub, wrapEvent.content);
-                if (!sealJsonStr) return null;
+                    return { wrapEvent: wrap, rumorId: rumor.id, rumorEvent: rumor };
+                }
 
-                let seal = JSON.parse(sealJsonStr);
-                let realSenderPub = seal.pubkey;
+                async function unwrapGift(myPriv, wrapEvent) {
+                    try {
+                        if (wrapEvent.kind !== 1059) return null;
+                        let ephemeralPub = wrapEvent.pubkey;
 
-                let rumorJsonStr = await pythonNip44Decrypt(myPriv, realSenderPub, seal.content);
-                if (!rumorJsonStr) return null;
+                        let sealJsonStr = await pythonNip44Decrypt(myPriv, ephemeralPub, wrapEvent.content);
+                        if (!sealJsonStr) return null;
 
-                let rumor = JSON.parse(rumorJsonStr);
-                return { senderPubkey: realSenderPub, rumor: rumor };
-            } catch (e) {
-                return null;
-            }
-        }
+                        let seal = JSON.parse(sealJsonStr);
+                        let realSenderPub = seal.pubkey;
+
+                        let rumorJsonStr = await pythonNip44Decrypt(myPriv, realSenderPub, seal.content);
+                        if (!rumorJsonStr) return null;
+
+                        let rumor = JSON.parse(rumorJsonStr);
+                        return { senderPubkey: realSenderPub, rumor: rumor };
+                    } catch (e) {
+                        return null;
+                    }
+                }
+
 
         // ================= 协议开关与状态管理 =================
         function toggleProtocol() {
@@ -1255,39 +1277,59 @@
         }
 
         async function sendMessage() {
-            let input = document.getElementById('msg-input');
-            let text = input.value.trim();
+                    let input = document.getElementById('msg-input');
+                    let text = input.value.trim();
 
-            if (!text && !pendingImageB64) return;
-            if (!currentChatPk) return;
+                    if (!text && !pendingImageB64) return;
+                    if (!currentChatPk) return;
 
-            let payload = text;
-            if (pendingImageB64) {
-                payload = JSON.stringify({ text: text, image: pendingImageB64 });
-            }
+                    // 组装互通 JSON Payload
+                    let payload = text;
+                    if (pendingImageB64) {
+                        payload = JSON.stringify({ text: text, image: pendingImageB64 });
+                    }
 
-            input.value = ''; input.style.height = '';
-            clearPendingImage();
+                    input.value = ''; input.style.height = '';
+                    clearPendingImage();
 
-            // 双轨协议切换发射器
-            if (useNip59) {
-                let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payload, 14);
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify(["EVENT", wrapEvent]));
+                    // 双轨协议切换发射器
+                    if (useNip59) {
+                        // 走 NIP-59 双重加密通道 (兼容 Python 裸 XChaCha20Poly1305)
+                        let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payload, 14);
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify(["EVENT", wrapEvent]));
+                        }
+
+                        // 本地记录保存 Rumor ID，并打上 NIP-59 标签
+                        if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                        messages[currentChatPk].push({
+                            id: rumorId,
+                            sender: pubKeyHex,
+                            text: payload,
+                            time: rumorEvent.created_at,
+                            enc_type: 59
+                        });
+                    } else {
+                        // 走传统的 NIP-04 基础私聊通道
+                        let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payload);
+                        let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
+
+                        // 本地记录保存，并打上 NIP-04 标签
+                        if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                        messages[currentChatPk].push({
+                            id: event.id,
+                            sender: pubKeyHex,
+                            text: payload,
+                            time: event.created_at,
+                            enc_type: 4
+                        });
+                    }
+
+                    syncLocalEncryptedCache();
+                    renderMessages(true);
+                    renderContacts();
+                    updateActivity();
                 }
-                if (!messages[currentChatPk]) messages[currentChatPk] = [];
-                messages[currentChatPk].push({ id: rumorId, sender: pubKeyHex, text: payload, time: rumorEvent.created_at, enc_type: 59 });
-            } else {
-                let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payload);
-                let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
-                if (!messages[currentChatPk]) messages[currentChatPk] =[];
-                messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payload, time: event.created_at, enc_type: 4 });
-            }
-
-            syncLocalEncryptedCache();
-            renderMessages(true); renderContacts();
-            updateActivity();
-        }
 
         function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth >= 768) { e.preventDefault(); sendMessage(); } }
 
