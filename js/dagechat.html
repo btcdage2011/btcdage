@@ -76,19 +76,22 @@
     <div id="app-screen" class="w-full h-full md:max-w-6xl md:shadow-2xl flex hidden bg-white relative overflow-hidden z-10">
         <!-- 左侧：侧边栏 -->
         <div id="sidebar" class="w-full md:w-[320px] lg:w-[350px] flex-shrink-0 border-r border-gray-200 flex flex-col bg-white h-full z-10">
-            <div class="p-4 bg-gray-50 flex justify-between items-center border-b border-gray-200 shrink-0">
-                <div class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition min-w-0" onclick="showProfileModal()" title="点击修改资料 / 备份私钥">
-                    <div id="my-avatar" class="w-11 h-11 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow shrink-0">我</div>
-                    <div class="min-w-0 pr-2">
-                        <div id="my-name" class="font-semibold text-gray-800 text-base truncate">加载中...</div>
-                        <div class="flex items-center text-xs text-gray-500 mt-0.5">
-                            <span id="relay-status" class="w-2 h-2 rounded-full bg-red-500 mr-1.5 shadow-sm shrink-0"></span>
-                            <span id="current-relay-display" class="truncate">Relay</span>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="manualLock()" class="text-xs text-gray-500 hover:text-gray-800 px-3 py-1.5 border border-gray-300 rounded-lg bg-white shrink-0 active:bg-gray-100 shadow-sm">锁定</button>
-            </div>
+          <div class="p-4 bg-gray-50 flex justify-between items-center border-b border-gray-200 shrink-0">
+              <div class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition min-w-0" onclick="showProfileModal()" title="点击修改资料 / 备份私钥">
+                  <div id="my-avatar" class="w-11 h-11 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow shrink-0">我</div>
+                  <div class="min-w-0 pr-2">
+                      <div id="my-name" class="font-semibold text-gray-800 text-base truncate">加载中...</div>
+                      <div class="flex items-center text-xs text-gray-500 mt-0.5">
+                          <span id="relay-status" class="w-2 h-2 rounded-full bg-red-500 mr-1.5 shadow-sm shrink-0"></span>
+                          <span id="current-relay-display" class="truncate">Relay</span>
+                      </div>
+                  </div>
+              </div>
+              <div class="flex space-x-2 shrink-0">
+                  <button onclick="manualLock()" class="text-xs text-gray-500 hover:text-gray-800 px-3 py-1.5 border border-gray-300 rounded-lg bg-white active:bg-gray-100 shadow-sm">锁定</button>
+                  <button onclick="logout()" class="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 border border-red-200 rounded-lg bg-white active:bg-red-50 shadow-sm">注销</button>
+              </div>
+          </div>
             <div class="p-3 border-b border-gray-200 bg-white shrink-0">
                 <div class="flex space-x-2">
                     <input type="text" id="new-contact-input" placeholder="粘贴对方 npub 公钥" class="flex-1 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
@@ -303,7 +306,13 @@
             </div>
         </div>
     </div>
-
+    <!-- ================= 图片查看器 弹窗 ================= -->
+        <div id="image-viewer-modal" class="fixed inset-0 bg-black bg-opacity-90 hidden z-[120] flex flex-col items-center justify-center p-2 transition-opacity" onclick="closeImageViewer()">
+            <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-white bg-gray-800 hover:bg-gray-700 rounded-full p-2 transition z-10">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <img id="viewer-img" class="max-w-full max-h-full object-contain cursor-zoom-out select-none" src="">
+        </div>
     <!-- ================= 核心 JavaScript ================= -->
     <script>
         let nt;
@@ -342,6 +351,25 @@
         let useNip59 = true;
 
         // ================= 工具函数 =================
+
+        // 兼容 PC 端 Base64 头像与标准 URL 头像
+                function formatAvatarUrl(pic) {
+                    if (!pic) return '';
+                    if (pic.startsWith('http') || pic.startsWith('data:image')) return pic;
+                    return 'data:image/jpeg;base64,' + pic;
+                }
+
+                // 全屏图片查看器
+                function openImageViewer(src) {
+                    document.getElementById('viewer-img').src = src;
+                    document.getElementById('image-viewer-modal').classList.remove('hidden');
+                }
+                function closeImageViewer() {
+                    document.getElementById('image-viewer-modal').classList.add('hidden');
+                    document.getElementById('viewer-img').src = '';
+                }
+
+
         function maskRelayUrl(url) {
             if (!url) return '';
             let cleanUrl = url.replace('ws://', '').replace('wss://', '');
@@ -612,16 +640,16 @@
         function manualLock() {
             if(!pubKeyHex) return;
             isLocked = true;
-            privKeyHex = null; // 内存中彻底销毁私钥
+            privKeyHex = null;
             if(ws) { ws.onclose = null; ws.close(); ws = null; }
             document.getElementById('app-screen').classList.add('hidden');
             document.getElementById('lock-screen').classList.remove('hidden');
 
             let acc = accounts.find(a => a.pubkey === pubKeyHex) || {};
-            let pic = profiles[pubKeyHex]?.picture || acc.picture;
+            let picUrl = formatAvatarUrl(profiles[pubKeyHex]?.picture || acc.picture);
             let name = profiles[pubKeyHex]?.name || acc.name || '已锁定';
 
-            document.getElementById('lock-avatar').innerHTML = pic ? `<img src="${pic}" class="w-full h-full object-cover">` : name.substring(0,1);
+            document.getElementById('lock-avatar').innerHTML = picUrl ? `<img src="${picUrl}" class="w-full h-full object-cover">` : name.substring(0,1);
             document.getElementById('lock-name').innerText = name;
             document.getElementById('lock-pwd').value = '';
             setTimeout(() => document.getElementById('lock-pwd').focus(), 100);
@@ -666,36 +694,37 @@
         }
 
         function renderAccountList() {
-            accounts = JSON.parse(localStorage.getItem('dage_accounts') || '[]');
-            const list = document.getElementById('saved-accounts-list');
-            list.innerHTML = '';
-            if(accounts.length === 0) {
-                showAddAccountArea();
-                return;
-            }
-            hideAddAccountArea();
-            accounts.forEach(acc => {
-                let div = document.createElement('div');
-                div.className = "flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition shadow-sm bg-white";
-                let avatar = acc.picture ? `<img src="${acc.picture}" class="w-10 h-10 rounded-full object-cover">` : `<div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">${acc.name?acc.name.charAt(0):'我'}</div>`;
-                let nameStr = acc.name || '未命名账号';
-                let npubStr = acc.npub.substring(0,10) + '...';
+                    accounts = JSON.parse(localStorage.getItem('dage_accounts') || '[]');
+                    const list = document.getElementById('saved-accounts-list');
+                    list.innerHTML = '';
+                    if(accounts.length === 0) {
+                        showAddAccountArea();
+                        return;
+                    }
+                    hideAddAccountArea();
+                    accounts.forEach(acc => {
+                        let div = document.createElement('div');
+                        div.className = "flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition shadow-sm bg-white";
+                        let picUrl = formatAvatarUrl(acc.picture);
+                        let avatar = picUrl ? `<img src="${picUrl}" class="w-10 h-10 rounded-full object-cover">` : `<div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">${acc.name?acc.name.charAt(0):'我'}</div>`;
+                        let nameStr = acc.name || '未命名账号';
+                        let npubStr = acc.npub.substring(0,10) + '...';
 
-                div.innerHTML = `
-                    <div class="flex items-center space-x-3 flex-1 min-w-0" onclick="promptLogin('${acc.pubkey}')">
-                        ${avatar}
-                        <div class="flex-1 min-w-0 pr-2">
-                            <div class="font-bold text-gray-800 text-sm truncate">${nameStr}</div>
-                            <div class="text-[11px] text-gray-400 font-mono truncate">${npubStr}</div>
-                        </div>
-                    </div>
-                    <button onclick="deleteAccount(event, '${acc.pubkey}')" class="p-2 text-gray-300 hover:text-red-500 transition active:scale-95" title="删除本机记录">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    </button>
-                `;
-                list.appendChild(div);
-            });
-        }
+                        div.innerHTML = `
+                            <div class="flex items-center space-x-3 flex-1 min-w-0" onclick="promptLogin('${acc.pubkey}')">
+                                ${avatar}
+                                <div class="flex-1 min-w-0 pr-2">
+                                    <div class="font-bold text-gray-800 text-sm truncate">${nameStr}</div>
+                                    <div class="text-[11px] text-gray-400 font-mono truncate">${npubStr}</div>
+                                </div>
+                            </div>
+                            <button onclick="deleteAccount(event, '${acc.pubkey}')" class="p-2 text-gray-300 hover:text-red-500 transition active:scale-95" title="删除本机记录">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        `;
+                        list.appendChild(div);
+                    });
+                }
 
         function deleteAccount(e, pk) {
             e.stopPropagation();
@@ -953,71 +982,83 @@
         }
 
         async function handleNostrEvent(ev) {
-            if (ev.kind === 0) {
-                try {
-                    profiles[ev.pubkey] = JSON.parse(ev.content);
-                    if (ev.pubkey === pubKeyHex) {
-                        document.getElementById('my-name').innerText = profiles[ev.pubkey].name || '我';
-                        if (profiles[ev.pubkey].picture) document.getElementById('my-avatar').innerHTML = `<img src="${profiles[ev.pubkey].picture}" class="w-full h-full object-cover">`;
+                    if (ev.kind === 0) {
+                        try {
+                            profiles[ev.pubkey] = JSON.parse(ev.content);
+                            if (ev.pubkey === pubKeyHex) {
+                                document.getElementById('my-name').innerText = profiles[ev.pubkey].name || '我';
+                                if (profiles[ev.pubkey].picture) {
+                                    let picUrl = formatAvatarUrl(profiles[ev.pubkey].picture);
+                                    document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                                }
 
-                        let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
-                        if(accIdx > -1) {
-                            accounts[accIdx].name = profiles[ev.pubkey].name || accounts[accIdx].name;
-                            accounts[accIdx].picture = profiles[ev.pubkey].picture || accounts[accIdx].picture;
-                            localStorage.setItem('dage_accounts', JSON.stringify(accounts));
+                                let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
+                                if(accIdx > -1) {
+                                    accounts[accIdx].name = profiles[ev.pubkey].name || accounts[accIdx].name;
+                                    accounts[accIdx].picture = profiles[ev.pubkey].picture || accounts[accIdx].picture;
+                                    localStorage.setItem('dage_accounts', JSON.stringify(accounts));
+                                }
+                            }
+                            renderContacts();
+                            if (currentChatPk === ev.pubkey) updateChatHeader();
+                        } catch(e) {}
+                    }
+
+                    if (ev.kind === 3 && ev.pubkey === pubKeyHex) {
+                        contacts =[...new Set(ev.tags.filter(t => t[0] === 'p').map(t => t[1]))];
+                        let allPksToFetch =[...new Set([...contacts, ...Object.keys(messages)])];
+                        if (allPksToFetch.length > 0) ws.send(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: allPksToFetch }]));
+                        renderContacts();
+                    }
+
+                    if (ev.kind === 5) {
+                        let deletedIds = ev.tags.filter(t => t[0] === 'e').map(t => t[1]);
+                        deletedIds.forEach(id => hiddenMsgsSet.add(id));
+                        syncLocalEncryptedCache();
+
+                        let isChanged = false;
+                        for (let pk in messages) {
+                            let oldLen = messages[pk].length;
+                            messages[pk] = messages[pk].filter(m => !hiddenMsgsSet.has(m.id));
+                            if (messages[pk].length !== oldLen) isChanged = true;
+                        }
+                        if (isChanged) {
+                            if (currentChatPk) renderMessages(false);
+                            renderContacts();
+                        }
+                        return;
+                    }
+
+                    if (ev.kind === 4) {
+                        if (hiddenMsgsSet.has(ev.id)) return;
+                        try {
+                            let peerPk = ev.pubkey === pubKeyHex ? ev.tags.find(t => t[0] === 'p')[1] : ev.pubkey;
+                            if (!peerPk) return;
+                            let decryptedText = await nt.nip04.decrypt(privKeyHex, peerPk, ev.content);
+                            _processDecryptedMessage(peerPk, ev.id, ev.pubkey, decryptedText, ev.created_at, 4);
+                        } catch (e) {}
+                    }
+
+                    if (ev.kind === 1059) {
+                        if (hiddenMsgsSet.has(ev.id)) return;
+                        let unwrapped = await unwrapGift(privKeyHex, ev);
+                        if (unwrapped) {
+                            let senderPk = unwrapped.senderPubkey;
+                            let rumor = unwrapped.rumor;
+                            if (hiddenMsgsSet.has(rumor.id)) return;
+
+                            let peerPk = senderPk;
+                            // 修复多端漫游：如果是自己抄送给自己的 NIP-59 消息
+                            if (senderPk === pubKeyHex) {
+                                let pTag = rumor.tags.find(t => t[0] === 'p');
+                                if (pTag && pTag[1]) {
+                                    peerPk = pTag[1];
+                                }
+                            }
+                            _processDecryptedMessage(peerPk, rumor.id, senderPk, rumor.content, rumor.created_at, 59);
                         }
                     }
-                    renderContacts();
-                    if (currentChatPk === ev.pubkey) updateChatHeader();
-                } catch(e) {}
-            }
-
-            if (ev.kind === 3 && ev.pubkey === pubKeyHex) {
-                contacts =[...new Set(ev.tags.filter(t => t[0] === 'p').map(t => t[1]))];
-                let allPksToFetch = [...new Set([...contacts, ...Object.keys(messages)])];
-                if (allPksToFetch.length > 0) ws.send(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: allPksToFetch }]));
-                renderContacts();
-            }
-
-            if (ev.kind === 5) {
-                let deletedIds = ev.tags.filter(t => t[0] === 'e').map(t => t[1]);
-                deletedIds.forEach(id => hiddenMsgsSet.add(id));
-                syncLocalEncryptedCache();
-
-                let isChanged = false;
-                for (let pk in messages) {
-                    let oldLen = messages[pk].length;
-                    messages[pk] = messages[pk].filter(m => !hiddenMsgsSet.has(m.id));
-                    if (messages[pk].length !== oldLen) isChanged = true;
                 }
-                if (isChanged) {
-                    if (currentChatPk) renderMessages(false);
-                    renderContacts();
-                }
-                return;
-            }
-
-            if (ev.kind === 4) {
-                if (hiddenMsgsSet.has(ev.id)) return;
-                try {
-                    let peerPk = ev.pubkey === pubKeyHex ? ev.tags.find(t => t[0] === 'p')[1] : ev.pubkey;
-                    if (!peerPk) return;
-                    let decryptedText = await nt.nip04.decrypt(privKeyHex, peerPk, ev.content);
-                    _processDecryptedMessage(peerPk, ev.id, ev.pubkey, decryptedText, ev.created_at, 4);
-                } catch (e) {}
-            }
-
-            if (ev.kind === 1059) {
-                if (hiddenMsgsSet.has(ev.id)) return;
-                let unwrapped = await unwrapGift(privKeyHex, ev);
-                if (unwrapped) {
-                    let peerPk = unwrapped.senderPubkey;
-                    let rumor = unwrapped.rumor;
-                    if (hiddenMsgsSet.has(rumor.id)) return;
-                    _processDecryptedMessage(peerPk, rumor.id, peerPk, rumor.content, rumor.created_at, 59);
-                }
-            }
-        }
 
         function _processDecryptedMessage(peerPk, msgId, senderPk, decryptedText, timestamp, encType) {
             if (!messages[peerPk]) messages[peerPk] = [];
@@ -1181,10 +1222,10 @@
             list.innerHTML = '';
 
             let allChatPks = new Set([...contacts, ...Object.keys(messages)]);
-            allChatPks.add(pubKeyHex); // 强制把自身公钥加入联系人列表 (作为备忘录)
+            allChatPks.add(pubKeyHex);
 
             let sortedContacts = Array.from(allChatPks).sort((a, b) => {
-                if (a === pubKeyHex) return -1; // 备忘录永远置顶
+                if (a === pubKeyHex) return -1;
                 if (b === pubKeyHex) return 1;
 
                 let msgsA = messages[a] ||[];
@@ -1197,9 +1238,10 @@
             sortedContacts.forEach(pk => {
                 let prof = profiles[pk] || { name: nt.nip19.npubEncode(pk).substring(0, 10) + '...' };
                 let isCurrent = (currentChatPk === pk);
-                let isStranger = !contacts.includes(pk) && pk !== pubKeyHex; // 自身永远不算陌生人
+                let isStranger = !contacts.includes(pk) && pk !== pubKeyHex;
 
                 let displayName = pk === pubKeyHex ? `${prof.name || '我'} (备忘录 💾)` : prof.name;
+                let picUrl = formatAvatarUrl(prof.picture);
 
                 let div = document.createElement('div');
                 div.className = `p-3 md:p-4 flex items-center space-x-3 cursor-pointer border-b border-gray-100 transition ${isCurrent ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50 border-l-4 border-transparent active:bg-gray-100'}`;
@@ -1210,7 +1252,7 @@
 
                 let avatarHtml = `
                     <div class="relative shrink-0">
-                        ${prof.picture ? `<img src="${prof.picture}" class="w-12 h-12 rounded-full object-cover">` : `<div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-lg">${prof.name ? prof.name.substring(0,1) : '?'}</div>`}
+                        ${picUrl ? `<img src="${picUrl}" class="w-12 h-12 rounded-full object-cover">` : `<div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-lg">${prof.name ? prof.name.substring(0,1) : '?'}</div>`}
                         ${unreadBadge}
                     </div>
                 `;
@@ -1256,9 +1298,10 @@
             let displayName = currentChatPk === pubKeyHex ? `${prof.name || '我'} (备忘录 💾)` : prof.name;
             document.getElementById('chat-name').innerText = displayName;
 
+            let picUrl = formatAvatarUrl(prof.picture);
             let avatarBox = document.getElementById('chat-avatar');
-            if(prof.picture) {
-                avatarBox.innerHTML = `<img src="${prof.picture}" class="w-full h-full object-cover">`;
+            if(picUrl) {
+                avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
                 avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
             } else {
                 avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
@@ -1276,7 +1319,7 @@
             msgs.forEach(m => {
                 let isMe = m.sender === pubKeyHex;
                 let isSelected = selectedMsgIds.has(m.id);
-                let encIcon = m.enc_type === 59 ? '🎁' : '🔒'; // 渲染气泡双轨加密标识
+                let encIcon = m.enc_type === 59 ? '🎁' : '🔒';
                 let timeStr = new Date(m.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ' ' + encIcon;
 
                 let wrapper = document.createElement('div');
@@ -1288,9 +1331,11 @@
                 let parsed = parseMessageContent(m.text);
                 let contentHtml = linkifyAndRenderMedia(parsed.text || "", isMe);
 
+                // 替换掉原先的 window.open，接入我们的 Lightbox 原生图片查看器
                 if (parsed.imageB64) {
                     let imgBorder = isMe ? 'border-blue-400' : 'border-gray-200';
-                    let imgHtml = `<img src="data:image/jpeg;base64,${parsed.imageB64}" class="max-w-full max-h-48 rounded-lg object-contain shadow-sm border ${imgBorder} cursor-pointer" onclick="window.open('data:image/jpeg;base64,${parsed.imageB64}', '_blank')" onload="if(this.parentNode.parentNode.parentNode.parentNode === document.getElementById('message-list')) document.getElementById('message-list').scrollTop = document.getElementById('message-list').scrollHeight">`;
+                    let imgSrc = `data:image/jpeg;base64,${parsed.imageB64}`;
+                    let imgHtml = `<img src="${imgSrc}" class="max-w-full max-h-48 rounded-lg object-contain shadow-sm border ${imgBorder} cursor-zoom-in" onclick="openImageViewer('${imgSrc}')" onload="if(this.parentNode.parentNode.parentNode.parentNode === document.getElementById('message-list')) document.getElementById('message-list').scrollTop = document.getElementById('message-list').scrollHeight">`;
                     contentHtml += contentHtml ? `<div class="mt-2 mb-1">${imgHtml}</div>` : `<div class="mb-1">${imgHtml}</div>`;
                 }
 
@@ -1314,59 +1359,48 @@
         }
 
         async function sendMessage() {
-                    let input = document.getElementById('msg-input');
-                    let text = input.value.trim();
+            let input = document.getElementById('msg-input');
+            let text = input.value.trim();
 
-                    if (!text && !pendingImageB64) return;
-                    if (!currentChatPk) return;
+            if (!text && !pendingImageB64) return;
+            if (!currentChatPk) return;
 
-                    // 组装互通 JSON Payload
-                    let payload = text;
-                    if (pendingImageB64) {
-                        payload = JSON.stringify({ text: text, image: pendingImageB64 });
-                    }
+            let payload = text;
+            if (pendingImageB64) {
+                payload = JSON.stringify({ text: text, image: pendingImageB64 });
+            }
 
-                    input.value = ''; input.style.height = '';
-                    clearPendingImage();
+            input.value = ''; input.style.height = '';
+            clearPendingImage();
 
-                    // 双轨协议切换发射器
-                    if (useNip59) {
-                        // 走 NIP-59 双重加密通道 (兼容 Python 裸 XChaCha20Poly1305)
-                        let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payload, 14);
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify(["EVENT", wrapEvent]));
-                        }
-
-                        // 本地记录保存 Rumor ID，并打上 NIP-59 标签
-                        if (!messages[currentChatPk]) messages[currentChatPk] = [];
-                        messages[currentChatPk].push({
-                            id: rumorId,
-                            sender: pubKeyHex,
-                            text: payload,
-                            time: rumorEvent.created_at,
-                            enc_type: 59
-                        });
-                    } else {
-                        // 走传统的 NIP-04 基础私聊通道
-                        let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payload);
-                        let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
-
-                        // 本地记录保存，并打上 NIP-04 标签
-                        if (!messages[currentChatPk]) messages[currentChatPk] = [];
-                        messages[currentChatPk].push({
-                            id: event.id,
-                            sender: pubKeyHex,
-                            text: payload,
-                            time: event.created_at,
-                            enc_type: 4
-                        });
-                    }
-
-                    syncLocalEncryptedCache();
-                    renderMessages(true);
-                    renderContacts();
-                    updateActivity();
+            if (useNip59) {
+                // 1. 发给对方的包裹 (把接收者 p tag 写入 rumor 方便多端识别)
+                let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payload, 14, [["p", currentChatPk]]);
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify(["EVENT", wrapEvent]));
                 }
+
+                // 2. 抄送给自己的包裹 (实现多端漫游同步)
+                if (currentChatPk !== pubKeyHex) {
+                    let selfWrap = await makeGiftWrap(privKeyHex, pubKeyHex, payload, 14, [["p", currentChatPk]]);
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify(["EVENT", selfWrap.wrapEvent]));
+                    }
+                }
+
+                if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                messages[currentChatPk].push({ id: rumorId, sender: pubKeyHex, text: payload, time: rumorEvent.created_at, enc_type: 59 });
+            } else {
+                let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payload);
+                let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
+                if (!messages[currentChatPk]) messages[currentChatPk] =[];
+                messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payload, time: event.created_at, enc_type: 4 });
+            }
+
+            syncLocalEncryptedCache();
+            renderMessages(true); renderContacts();
+            updateActivity();
+        }
 
         function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth >= 768) { e.preventDefault(); sendMessage(); } }
 
@@ -1380,9 +1414,10 @@
             document.getElementById('peer-modal-name').innerText = displayName;
             document.getElementById('peer-modal-pubkey').innerText = nt.nip19.npubEncode(currentChatPk);
 
+            let picUrl = formatAvatarUrl(prof.picture);
             let avatarBox = document.getElementById('peer-modal-avatar');
-            if(prof.picture) {
-                avatarBox.innerHTML = `<img src="${prof.picture}" class="w-full h-full object-cover">`;
+            if(picUrl) {
+                avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
                 avatarBox.classList.replace('bg-white', 'bg-transparent');
             } else {
                 avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
