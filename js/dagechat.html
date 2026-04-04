@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.23</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.24</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -3159,17 +3159,20 @@
 
         // ================= 聊天记录导出引擎 =================
         let exportTargetId = null;
+        let exportTargetName = "All"; // 新增：记录当前导出的目标名称
 
         function openExportModal(targetId = null) {
             exportTargetId = targetId;
+            exportTargetName = "All"; // 默认为全局导出
+
             let title = "全局导出 (全部会话)";
             let desc = "将导出您所有的私聊和群聊记录。";
 
             if (targetId) {
                 let isGroup = !!groups[targetId];
-                let name = isGroup ? groups[targetId].name : (profiles[targetId]?.name || "用户");
-                title = `导出: ${name}`;
-                desc = `仅导出与【${name}】(${targetId.substring(0,8)}...) 的聊天记录。`;
+                exportTargetName = isGroup ? groups[targetId].name : (profiles[targetId]?.name || "User");
+                title = `导出: ${exportTargetName}`;
+                desc = `仅导出与【${exportTargetName}】(${targetId.substring(0,8)}...) 的聊天记录。`;
             }
 
             document.getElementById('export-title').innerText = title;
@@ -3356,15 +3359,26 @@
             if (fmt === 'html') exportData += "<div class='clear'></div></body></html>";
 
             // 触发浏览器下载
-            let blob = new Blob([exportData], { type: fmt === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' });
-            let url = URL.createObjectURL(blob);
-            let a = document.createElement('a');
-            a.href = url;
-            a.download = `DageChat_Export_${Math.floor(Date.now()/1000)}.${fmt}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            // === 核心对齐：利用正则复刻 Python 的 isalnum() + 空格/下划线/减号 的过滤逻辑 ===
+                // \p{L} 匹配任何语言的字母(含中文), \p{N} 匹配数字, \s 匹配空格
+                let safeName = exportTargetName.replace(/[^\p{L}\p{N}\s_-]/gu, '').trim();
+                if (!safeName) safeName = "Export";
+
+                // 为了更好的跨平台兼容性，我们将文件名中的空格转为下划线
+                safeName = safeName.replace(/\s+/g, '_');
+
+                let fileName = `ChatHistory_${safeName}_${Math.floor(Date.now()/1000)}.${fmt}`;
+
+                // 触发浏览器下载
+                let blob = new Blob([exportData], { type: fmt === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' });
+                let url = URL.createObjectURL(blob);
+                let a = document.createElement('a');
+                a.href = url;
+                a.download = fileName; // 使用与 PC 端一致的命名
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
 
             document.getElementById('export-modal').classList.add('hidden');
             alert(`✅ 已成功导出 ${fmt.toUpperCase()} 文件！`);
