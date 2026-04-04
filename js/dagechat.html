@@ -319,12 +319,20 @@
             </div>
         </div>
     </div>
+
     <!-- ================= 图片查看器 弹窗 ================= -->
-    <div id="image-viewer-modal" class="fixed inset-0 bg-black bg-opacity-90 hidden z-[120] flex flex-col items-center justify-center overflow-hidden">
-            <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-white bg-gray-800 hover:bg-gray-700 rounded-full p-2 transition z-50">
+        <div id="image-viewer-modal" class="fixed inset-0 bg-black bg-opacity-90 hidden z-[120] flex flex-col items-center justify-center overflow-hidden">
+            <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-white bg-gray-800 hover:bg-gray-700 rounded-full p-2 transition z-50 shadow-lg">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
+
             <img id="viewer-img" class="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing select-none relative" src="" style="transform-origin: center center;">
+
+            <!-- 新增：保存图片按钮 -->
+            <button onclick="downloadViewerImage()" class="absolute bottom-8 px-6 py-2.5 bg-gray-800 bg-opacity-80 hover:bg-opacity-100 text-white rounded-full font-medium flex items-center shadow-lg transition z-50 backdrop-blur-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                保存图片
+            </button>
         </div>
 
         <!-- ================= 创建群组 弹窗 ================= -->
@@ -468,6 +476,20 @@
                             img.style.transform = `translate(0px, 0px) scale(1)`;
                             document.getElementById('image-viewer-modal').classList.remove('hidden');
                         }
+
+                        // ================= 图片保存功能 =================
+                                function downloadViewerImage() {
+                                    const img = document.getElementById('viewer-img');
+                                    if (!img.src) return;
+
+                                    const a = document.createElement('a');
+                                    a.href = img.src;
+                                    // 随机生成一个文件名
+                                    a.download = 'DageChat_Image_' + Math.floor(Date.now() / 1000) + '.jpg';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                }
 
                         function closeImageViewer() {
                             document.getElementById('image-viewer-modal').classList.add('hidden');
@@ -1704,96 +1726,103 @@
                 }
 
                 async function sendMessage() {
-                    let input = document.getElementById('msg-input');
-                    let text = input.value.trim();
+                                    let input = document.getElementById('msg-input');
+                                    let text = input.value.trim();
 
-                    if (!text && !pendingImageB64) return;
-                    if (!currentChatPk) return;
+                                    // 修复 Bug：提前将图片数据缓存到局部变量，防止被 clearPendingImage 清空
+                                    let currentImageB64 = pendingImageB64;
 
-                    let payloadObj = { text: text };
-                    if (pendingImageB64) {
-                        payloadObj.image = pendingImageB64;
-                    }
+                                    if (!text && !currentImageB64) return;
+                                    if (!currentChatPk) return;
 
-                    input.value = ''; input.style.height = '';
-                    clearPendingImage();
+                                    let payloadObj = { text: text };
+                                    if (currentImageB64) {
+                                        payloadObj.image = currentImageB64;
+                                    }
 
-                    let isGroup = !!groups[currentChatPk];
-                    let nowTs = Math.floor(Date.now() / 1000);
+                                    // 清空 UI 状态
+                                    input.value = '';
+                                    input.style.height = '';
+                                    clearPendingImage();
 
-                    // 【群聊发送逻辑】
-                    if (isGroup) {
-                        let grp = groups[currentChatPk];
+                                    let isGroup = !!groups[currentChatPk];
+                                    let nowTs = Math.floor(Date.now() / 1000);
 
-                        if (grp.type === 1) { // 幽灵群
-                            payloadObj.alias = profiles[pubKeyHex]?.name || 'Anon';
-                            let nonceStr = Array.from(sodium.randombytes_buf(8)).map(b => b.toString(16).padStart(2,'0')).join('');
-                            payloadObj.nonce = nonceStr;
-                            myGhostNonces.add(nonceStr); // 记录属于我发送的特征
-                            let payloadStr = JSON.stringify(payloadObj);
+                                    // 【群聊发送逻辑】
+                                    if (isGroup) {
+                                        let grp = groups[currentChatPk];
 
-                            // 用群私钥打包发给群公钥
-                            let { wrapEvent, rumorId } = await makeGiftWrap(grp.key_hex, currentChatPk, payloadStr, 14);
-                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", wrapEvent]));
+                                        if (grp.type === 1) { // 幽灵群
+                                            payloadObj.alias = profiles[pubKeyHex]?.name || 'Anon';
+                                            let nonceStr = Array.from(sodium.randombytes_buf(8)).map(b => b.toString(16).padStart(2,'0')).join('');
+                                            payloadObj.nonce = nonceStr;
+                                            myGhostNonces.add(nonceStr); // 记录属于我发送的特征
+                                            let payloadStr = JSON.stringify(payloadObj);
 
-                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
-                            messages[currentChatPk].push({ id: rumorId, sender: currentChatPk, text: payloadStr, time: nowTs, enc_type: 59 });
+                                            // 用群私钥打包发给群公钥
+                                            let { wrapEvent, rumorId } = await makeGiftWrap(grp.key_hex, currentChatPk, payloadStr, 14);
+                                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", wrapEvent]));
 
-                        } else { // 普通群
-                            payloadObj.name = profiles[pubKeyHex]?.name || '我';
-                            payloadObj.k = pubKeyHex;
-                            let payloadStr = JSON.stringify(payloadObj);
+                                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                                            messages[currentChatPk].push({ id: rumorId, sender: currentChatPk, text: payloadStr, time: nowTs, enc_type: 59 });
 
-                            let keyBytes = new Uint8Array(grp.key_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                            let nonceBytes = sodium.randombytes_buf(24);
-                            let dataBytes = new TextEncoder().encode(payloadStr);
-                            let ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(dataBytes, null, null, nonceBytes, keyBytes);
+                                        } else { // 普通群
+                                            payloadObj.name = profiles[pubKeyHex]?.name || '我';
+                                            payloadObj.k = pubKeyHex;
+                                            let payloadStr = JSON.stringify(payloadObj);
 
-                            let finalPayload = new Uint8Array(1 + 24 + ciphertext.length);
-                            finalPayload[0] = 2;
-                            finalPayload.set(nonceBytes, 1);
-                            finalPayload.set(ciphertext, 25);
-                            let b64Content = bytesToBase64(finalPayload);
+                                            let keyBytes = new Uint8Array(grp.key_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                                            let nonceBytes = sodium.randombytes_buf(24);
+                                            let dataBytes = new TextEncoder().encode(payloadStr);
+                                            let ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(dataBytes, null, null, nonceBytes, keyBytes);
 
-                            let tags = [["g", currentChatPk]];
-                            let difficulty = currentChatPk === "feb75fb664b41f95" ? 16 : 8; // 官方群难度16，普通群8
+                                            let finalPayload = new Uint8Array(1 + 24 + ciphertext.length);
+                                            finalPayload[0] = 2;
+                                            finalPayload.set(nonceBytes, 1);
+                                            finalPayload.set(ciphertext, 25);
+                                            let b64Content = bytesToBase64(finalPayload);
 
-                            let event = minePowAndSign(privKeyHex, 42, b64Content, tags, difficulty);
-                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", event]));
+                                            let tags = [["g", currentChatPk]];
+                                            let difficulty = currentChatPk === "feb75fb664b41f95" ? 16 : 8; // 官方群难度16，普通群8
 
-                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
-                            messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payloadStr, time: event.created_at, enc_type: 0 });
-                        }
-                    }
-                    // 【私聊发送逻辑】
-                    else {
-                        let payloadStr = text;
-                        if (pendingImageB64) payloadStr = JSON.stringify(payloadObj);
+                                            let event = minePowAndSign(privKeyHex, 42, b64Content, tags, difficulty);
+                                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", event]));
 
-                        if (useNip59) {
-                            let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payloadStr, 14, [["p", currentChatPk]]);
-                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", wrapEvent]));
+                                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                                            messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payloadStr, time: event.created_at, enc_type: 0 });
+                                        }
+                                    }
+                                    // 【私聊发送逻辑】
+                                    else {
+                                        let payloadStr = text;
+                                        // 修复 Bug：使用局部变量 currentImageB64 判断
+                                        if (currentImageB64) payloadStr = JSON.stringify(payloadObj);
 
-                            // 抄送自己以实现多端漫游
-                            if (currentChatPk !== pubKeyHex) {
-                                let selfWrap = await makeGiftWrap(privKeyHex, pubKeyHex, payloadStr, 14, [["p", currentChatPk]]);
-                                if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", selfWrap.wrapEvent]));
-                            }
+                                        if (useNip59) {
+                                            let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payloadStr, 14, [["p", currentChatPk]]);
+                                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", wrapEvent]));
 
-                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
-                            messages[currentChatPk].push({ id: rumorId, sender: pubKeyHex, text: payloadStr, time: rumorEvent.created_at, enc_type: 59 });
-                        } else {
-                            let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payloadStr);
-                            let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
-                            if (!messages[currentChatPk]) messages[currentChatPk] =[];
-                            messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payloadStr, time: event.created_at, enc_type: 4 });
-                        }
-                    }
+                                            // 抄送自己以实现多端漫游
+                                            if (currentChatPk !== pubKeyHex) {
+                                                let selfWrap = await makeGiftWrap(privKeyHex, pubKeyHex, payloadStr, 14, [["p", currentChatPk]]);
+                                                if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", selfWrap.wrapEvent]));
+                                            }
 
-                    syncLocalEncryptedCache();
-                    renderMessages(true); renderContacts();
-                    updateActivity();
-                }
+                                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                                            messages[currentChatPk].push({ id: rumorId, sender: pubKeyHex, text: payloadStr, time: rumorEvent.created_at, enc_type: 59 });
+                                        } else {
+                                            let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payloadStr);
+                                            let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
+                                            if (!messages[currentChatPk]) messages[currentChatPk] =[];
+                                            messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payloadStr, time: event.created_at, enc_type: 4 });
+                                        }
+                                    }
+
+                                    syncLocalEncryptedCache();
+                                    renderMessages(true);
+                                    renderContacts();
+                                    updateActivity();
+                                }
 
         function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth >= 768) { e.preventDefault(); sendMessage(); } }
 
@@ -2005,13 +2034,6 @@
                             renderContacts();
                             selectContact(gid);
                             initRelayConnection(); // 重新订阅
-                    // 
-                    // // 下发 REQ 监听该群
-                    // if (ws && ws.readyState === WebSocket.OPEN) {
-                    //     const subId = "sub_group_" + gid.substring(0, 8);
-                    //     const filter = isGhost ? { kinds: [1059], "#p": [gid], limit: 50 } : { kinds:[42, 30078], "#g": [gid], limit: 50 };
-                    //     ws.send(JSON.stringify(["REQ", subId, filter]));
-                    // }
                 }
 
                 async function generateInviteLink(gid) {
