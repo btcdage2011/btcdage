@@ -581,10 +581,36 @@
                     let j = JSON.parse(rawContent);
                     if (j.text !== undefined) parsed.text = j.text;
                     if (j.image) parsed.imageB64 = j.image;
+                    if (j.alias) parsed.alias = j.alias;
+                    if (j.nonce) parsed.nonce = j.nonce;
+                    if (j.name) parsed.name = j.name;
                 } catch(e) {}
             }
             return parsed;
         }
+
+        // ================= 云端群组与通讯录漫游同步 (Kind 3) =================
+         async function syncBackupToCloud() {
+             if (!privKeyHex || !pubKeyHex) return;
+             // 收集当前所有的群组和联系人
+             let groupsList = Object.keys(groups).map(gid => {
+                 let g = groups[gid];
+                 return { id: gid, name: g.name, key: g.key_hex, type: g.type, owner: g.owner };
+             });
+             let contactsList = contacts.map(pk => {
+                 let name = (profiles[pk] && profiles[pk].name) ? profiles[pk].name : "";
+                 return { pubkey: pk, name: name };
+             });
+
+             let payload = JSON.stringify({ groups: groupsList, contacts: contactsList, ts: Math.floor(Date.now()/1000) });
+             // 使用 Python 兼容的 NIP-44 加密打包
+             let cipher = await pythonNip44Encrypt(privKeyHex, pubKeyHex, payload);
+
+             let tags = [["p", pubKeyHex]];
+             contacts.forEach(pk => tags.push(["p", pk]));
+
+             await publishEvent(3, cipher, tags);
+         }
 
         // 超链接与网络图片渲染引擎
         function linkifyAndRenderMedia(txt, isMe) {
@@ -1139,24 +1165,32 @@
         function initRelayConnection() {
             if (ws) { ws.onclose = null; ws.close(); }
             document.getElementById('relay-status').classList.replace('bg-green-500', 'bg-red-500');
-
-            // 尝试连接前，如果在 wss 模式下则预先显示信任证书按钮 (连接成功后会自动隐藏)
             updateSidebarTrustLink(true);
 
             try { ws = new WebSocket(currentRelayUrl); } catch(e) { return; }
 
             ws.onopen = () => {
                 document.getElementById('relay-status').classList.replace('bg-red-500', 'bg-green-500');
-                // 连接成功，说明证书已信任或无需信任，隐藏按钮
                 updateSidebarTrustLink(false);
                 if (reconnectTimer) clearInterval(reconnectTimer);
 
+                let ghostGids = Object.keys(groups).filter(gid => groups[gid].type === 1);
+                let normalGids = Object.keys(groups).filter(gid => groups[gid].type === 0);
+
+                // 核心修复：把群组 ID 也加入订阅列表
                 const req =["REQ", "sub-" + Date.now(),
-                    { kinds: [0, 3], authors: [pubKeyHex] },
+                    { kinds: [0], authors: [pubKeyHex] },
                     { kinds: [4, 1059], "#p":[pubKeyHex] },
                     { kinds: [4], authors: [pubKeyHex] }
                 ];
+
+                if (ghostGids.length > 0) req.push({ kinds: [1059], "#p": ghostGids });
+                if (normalGids.length > 0) req.push({ kinds: [42, 30078], "#g": normalGids });
+
                 ws.send(JSON.stringify(req));
+
+                // 独立发起一次 Kind 3 同步拉取
+                ws.send(JSON.stringify(["REQ", "sync3-" + Date.now(), { kinds:[3], authors: [pubKeyHex], limit: 1 }]));
             };
 
             ws.onmessage = async (event) => {
@@ -1168,15 +1202,10 @@
             ws.onclose = () => {
                 if(isLocked) return;
                 document.getElementById('relay-status').classList.replace('bg-green-500', 'bg-red-500');
-                // 连接断开，重新显示证书引导
                 updateSidebarTrustLink(true);
                 reconnectTimer = setTimeout(initRelayConnection, 3000);
             };
-
-            ws.onerror = (e) => {
-                // 发生底层网络/证书错误
-                updateSidebarTrustLink(true);
-            };
+            ws.onerror = (e) => { updateSidebarTrustLink(true); };
         }
 
         async function publishEvent(kind, content, tags =[]) {
@@ -1188,122 +1217,137 @@
         }
 
         async function handleNostrEvent(ev) {
-                    if (ev.kind === 0) {
-                        try {
-                            profiles[ev.pubkey] = JSON.parse(ev.content);
-                            if (ev.pubkey === pubKeyHex) {
-                                document.getElementById('my-name').innerText = profiles[ev.pubkey].name || '我';
-                                if (profiles[ev.pubkey].picture) {
-                                    let picUrl = formatAvatarUrl(profiles[ev.pubkey].picture);
-                                    document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
-                                }
+            if (ev.kind === 0) {
+                try {
+                    profiles[ev.pubkey] = JSON.parse(ev.content);
+                    if (ev.pubkey === pubKeyHex) {
+                        document.getElementById('my-name').innerText = profiles[ev.pubkey].name || '我';
+                        if (profiles[ev.pubkey].picture) {
+                            let picUrl = formatAvatarUrl(profiles[ev.pubkey].picture);
+                            document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                        }
+                    }
+                    renderContacts();
+                    if (currentChatPk === ev.pubkey) updateChatHeader();
+                } catch(e) {}
+            }
 
-                                let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
-                                if(accIdx > -1) {
-                                    accounts[accIdx].name = profiles[ev.pubkey].name || accounts[accIdx].name;
-                                    accounts[accIdx].picture = profiles[ev.pubkey].picture || accounts[accIdx].picture;
-                                    localStorage.setItem('dage_accounts', JSON.stringify(accounts));
-                                }
+            if (ev.kind === 3 && ev.pubkey === pubKeyHex) {
+                let newContacts = ev.tags.filter(t => t[0] === 'p').map(t => t[1]);
+                contacts =[...new Set([...contacts, ...newContacts])];
+
+                // 核心修复：解密 Kind 3，同步远端群组与联系人
+                let isGroupChanged = false;
+                if (ev.content && ev.content.length > 20) {
+                    try {
+                        let decrypted = await pythonNip44Decrypt(privKeyHex, pubKeyHex, ev.content);
+                        if (decrypted) {
+                            let data = JSON.parse(decrypted);
+                            if (data.groups) {
+                                data.groups.forEach(g => {
+                                    if (!groups[g.id]) {
+                                        groups[g.id] = { name: g.name, key_hex: g.key, type: g.type || 0, owner: g.owner || null };
+                                        isGroupChanged = true;
+                                    }
+                                });
                             }
-                            renderContacts();
-                            if (currentChatPk === ev.pubkey) updateChatHeader();
-                        } catch(e) {}
-                    }
-
-                    if (ev.kind === 3 && ev.pubkey === pubKeyHex) {
-                        contacts =[...new Set(ev.tags.filter(t => t[0] === 'p').map(t => t[1]))];
-                        let allPksToFetch =[...new Set([...contacts, ...Object.keys(messages)])];
-                        if (allPksToFetch.length > 0) ws.send(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: allPksToFetch }]));
-                        renderContacts();
-                    }
-
-                    if (ev.kind === 5) {
-                        let deletedIds = ev.tags.filter(t => t[0] === 'e').map(t => t[1]);
-                        deletedIds.forEach(id => hiddenMsgsSet.add(id));
-                        syncLocalEncryptedCache();
-
-                        let isChanged = false;
-                        for (let pk in messages) {
-                            let oldLen = messages[pk].length;
-                            messages[pk] = messages[pk].filter(m => !hiddenMsgsSet.has(m.id));
-                            if (messages[pk].length !== oldLen) isChanged = true;
-                        }
-                        if (isChanged) {
-                            if (currentChatPk) renderMessages(false);
-                            renderContacts();
-                        }
-                        return;
-                    }
-
-                    // 接收：私聊 NIP-04
-                    if (ev.kind === 4) {
-                        if (hiddenMsgsSet.has(ev.id)) return;
-                        try {
-                            let peerPk = ev.pubkey === pubKeyHex ? ev.tags.find(t => t[0] === 'p')[1] : ev.pubkey;
-                            if (!peerPk) return;
-                            let decryptedText = await nt.nip04.decrypt(privKeyHex, peerPk, ev.content);
-                            _processDecryptedMessage(peerPk, ev.id, ev.pubkey, decryptedText, ev.created_at, 4);
-                        } catch (e) {}
-                    }
-
-                    // 接收：私聊与幽灵群 NIP-59
-                    if (ev.kind === 1059) {
-                        if (hiddenMsgsSet.has(ev.id)) return;
-
-                        let pTag = ev.tags.find(t => t[0] === 'p');
-                        let recipientPk = pTag ? pTag[1] : null;
-
-                        let decryptKey = privKeyHex;
-                        let isGhostGroup = false;
-
-                        // 如果包裹的目标是幽灵群，必须用群私钥解密
-                        if (recipientPk && groups[recipientPk] && groups[recipientPk].type === 1) {
-                            decryptKey = groups[recipientPk].key_hex;
-                            isGhostGroup = true;
-                        }
-
-                        let unwrapped = await unwrapGift(decryptKey, ev);
-                        if (unwrapped) {
-                            let senderPk = unwrapped.senderPubkey;
-                            let rumor = unwrapped.rumor;
-                            if (hiddenMsgsSet.has(rumor.id)) return;
-
-                            let peerPk = senderPk;
-                            if (isGhostGroup) {
-                                peerPk = recipientPk; // 归档到群会话下
-                            } else if (senderPk === pubKeyHex) {
-                                // 自己发给自己的漫游同步
-                                let rTag = rumor.tags.find(t => t[0] === 'p');
-                                if (rTag && rTag[1]) peerPk = rTag[1];
+                            if (data.contacts) {
+                                data.contacts.forEach(c => {
+                                    if (!contacts.includes(c.pubkey)) contacts.push(c.pubkey);
+                                    if (c.name && !profiles[c.pubkey]) profiles[c.pubkey] = { name: c.name };
+                                });
                             }
-                            _processDecryptedMessage(peerPk, rumor.id, senderPk, rumor.content, rumor.created_at, 59);
                         }
-                    }
-
-                    // 接收：普通群聊 Kind 42
-                    if (ev.kind === 42) {
-                        if (hiddenMsgsSet.has(ev.id)) return;
-                        let gTag = ev.tags.find(t => t[0] === 'g');
-                        if (!gTag) return;
-                        let gid = gTag[1];
-                        if (!groups[gid] || groups[gid].type !== 0) return;
-
-                        try {
-                            let grp = groups[gid];
-                            let keyBytes = new Uint8Array(grp.key_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                            let raw = base64ToBytes(ev.content);
-                            if (raw.length < 41 || raw[0] !== 2) return;
-
-                            let nonce = raw.subarray(1, 25);
-                            let ciphertext = raw.subarray(25);
-                            let plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, ciphertext, null, nonce, keyBytes);
-                            let decryptedText = new TextDecoder().decode(plaintextBytes);
-
-                            _processDecryptedMessage(gid, ev.id, ev.pubkey, decryptedText, ev.created_at, 0);
-                        } catch(e) {}
-                    }
+                    } catch(e) {}
                 }
 
+                syncLocalEncryptedCache();
+                if (isGroupChanged) { initRelayConnection(); } // 发现新群，重新订阅
+
+                let allPksToFetch = [...new Set([...contacts, ...Object.keys(messages)])];
+                if (allPksToFetch.length > 0) ws.send(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: allPksToFetch }]));
+                renderContacts();
+                return;
+            }
+
+            if (ev.kind === 5) {
+                let deletedIds = ev.tags.filter(t => t[0] === 'e').map(t => t[1]);
+                deletedIds.forEach(id => hiddenMsgsSet.add(id));
+                syncLocalEncryptedCache();
+                let isChanged = false;
+                for (let pk in messages) {
+                    let oldLen = messages[pk].length;
+                    messages[pk] = messages[pk].filter(m => !hiddenMsgsSet.has(m.id));
+                    if (messages[pk].length !== oldLen) isChanged = true;
+                }
+                if (isChanged) {
+                    if (currentChatPk) renderMessages(false);
+                    renderContacts();
+                }
+                return;
+            }
+
+            if (ev.kind === 4) {
+                if (hiddenMsgsSet.has(ev.id)) return;
+                try {
+                    let peerPk = ev.pubkey === pubKeyHex ? ev.tags.find(t => t[0] === 'p')[1] : ev.pubkey;
+                    if (!peerPk) return;
+                    let decryptedText = await nt.nip04.decrypt(privKeyHex, peerPk, ev.content);
+                    _processDecryptedMessage(peerPk, ev.id, ev.pubkey, decryptedText, ev.created_at, 4);
+                } catch (e) {}
+            }
+
+            if (ev.kind === 1059) {
+                if (hiddenMsgsSet.has(ev.id)) return;
+                let pTag = ev.tags.find(t => t[0] === 'p');
+                let recipientPk = pTag ? pTag[1] : null;
+                let decryptKey = privKeyHex;
+                let isGhostGroup = false;
+
+                if (recipientPk && groups[recipientPk] && groups[recipientPk].type === 1) {
+                    decryptKey = groups[recipientPk].key_hex;
+                    isGhostGroup = true;
+                }
+
+                let unwrapped = await unwrapGift(decryptKey, ev);
+                if (unwrapped) {
+                    let senderPk = unwrapped.senderPubkey;
+                    let rumor = unwrapped.rumor;
+                    if (hiddenMsgsSet.has(rumor.id)) return;
+
+                    let peerPk = senderPk;
+                    if (isGhostGroup) {
+                        peerPk = recipientPk;
+                    } else if (senderPk === pubKeyHex) {
+                        let rTag = rumor.tags.find(t => t[0] === 'p');
+                        if (rTag && rTag[1]) peerPk = rTag[1];
+                    }
+                    _processDecryptedMessage(peerPk, rumor.id, senderPk, rumor.content, rumor.created_at, 59);
+                }
+            }
+
+            if (ev.kind === 42) {
+                if (hiddenMsgsSet.has(ev.id)) return;
+                let gTag = ev.tags.find(t => t[0] === 'g');
+                if (!gTag) return;
+                let gid = gTag[1];
+                if (!groups[gid] || groups[gid].type !== 0) return;
+
+                try {
+                    let grp = groups[gid];
+                    let keyBytes = new Uint8Array(grp.key_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                    let raw = base64ToBytes(ev.content);
+                    if (raw.length < 41 || raw[0] !== 2) return;
+
+                    let nonce = raw.subarray(1, 25);
+                    let ciphertext = raw.subarray(25);
+                    let plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, ciphertext, null, nonce, keyBytes);
+                    let decryptedText = new TextDecoder().decode(plaintextBytes);
+
+                    _processDecryptedMessage(gid, ev.id, ev.pubkey, decryptedText, ev.created_at, 0);
+                } catch(e) {}
+            }
+        }
 
         function _processDecryptedMessage(peerPk, msgId, senderPk, decryptedText, timestamp, encType) {
             if (!messages[peerPk]) messages[peerPk] = [];
@@ -1324,8 +1368,9 @@
                 syncLocalEncryptedCache();
                 if (currentChatPk === peerPk) renderMessages(isNewRealTimeMsg);
 
-                if (!profiles[peerPk] && peerPk !== pubKeyHex) {
-                    ws.send(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), { kinds: [0], authors: [peerPk] }]));
+                // 核心修复：拉取真实发言人的头像和昵称 (不再错误地去拉群ID)
+                if (!profiles[senderPk] && senderPk !== pubKeyHex) {
+                    ws.send(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), { kinds: [0], authors: [senderPk] }]));
                 }
                 renderContacts();
             }
@@ -1627,9 +1672,11 @@
                         if (groups[currentChatPk] && !isMe) {
                             let sName = "未知";
                             if (groups[currentChatPk].type === 1 && parsed && parsed.alias) {
-                                sName = parsed.alias + " 🎭";
-                            } else if (profiles[m.sender]) {
-                                sName = profiles[m.sender].name || m.sender.substring(0,6);
+                                sName = parsed.alias + " 🎭"; // 幽灵群的化名
+                            } else if (profiles[m.sender] && profiles[m.sender].name) {
+                                sName = profiles[m.sender].name; // 优先使用从网络拉取到的真名
+                            } else if (parsed && parsed.name) {
+                                sName = parsed.name; // 备用方案：PC端发信附带的 JSON Name
                             } else {
                                 sName = "用户 " + m.sender.substring(0,6);
                             }
@@ -1824,11 +1871,12 @@
 
         function exitGroupFromModal(gid) {
             if (!confirm(`确定要退出群聊【${groups[gid].name}】吗？\n退出后将清除本地数据，重新加入需要新的邀请码。`)) return;
-
             delete groups[gid];
-            messages[gid] = [];
+            messages[gid] =[];
             delete unreadCounts[gid];
             syncLocalEncryptedCache();
+
+            syncBackupToCloud(); // <-- 触发云端同步 (无 await 异步抛出)
 
             renderContacts();
             closePeerProfileModal();
@@ -1844,7 +1892,8 @@
         async function addContactFromModal(pk) {
             if(contacts.includes(pk)) return;
             contacts.push(pk);
-            await publishEvent(3, "", contacts.map(c => ["p", c]));
+            await publishEvent(3, "", contacts.map(c => ["p", c])); // 兼容 NIP-02
+            await syncBackupToCloud(); // <-- 触发云端同步
             renderContacts();
             closePeerProfileModal();
             alert("已成功添加为好友！");
@@ -1854,6 +1903,7 @@
             if (!confirm("确定要删除此好友吗？\n删除后对方将被标记为[陌生人]，但历史聊天记录会保留。")) return;
             contacts = contacts.filter(c => c !== pk);
             await publishEvent(3, "", contacts.map(c =>["p", c]));
+            await syncBackupToCloud(); // <-- 触发云端同步
             renderContacts();
             closePeerProfileModal();
         }
@@ -1931,31 +1981,30 @@
                 function closeCreateGroupModal() { document.getElementById('create-group-modal').classList.add('hidden'); }
 
                 async function submitCreateGroup() {
-                    const nameInput = document.getElementById('new-group-name').value.trim();
-                    const isGhost = document.getElementById('new-group-isghost').checked;
+                            const nameInput = document.getElementById('new-group-name').value.trim();
+                            const isGhost = document.getElementById('new-group-isghost').checked;
 
-                    if (!nameInput) return alert("请输入群组名称");
+                            if (!nameInput) return alert("请输入群组名称");
 
-                    let gid, keyHex;
-                    if (isGhost) {
-                        // 幽灵群的私钥和公钥 (纯数学生成)
-                        keyHex = nt.generatePrivateKey();
-                        gid = nt.getPublicKey(keyHex);
-                    } else {
-                        // 普通群：随机32字节对称密钥，ID为名称+创建者公钥的哈希
-                        const randBytes = sodium.randombytes_buf(32);
-                        keyHex = Array.from(randBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                        gid = (await sha256Hex(nameInput + pubKeyHex)).substring(0, 16);
-                    }
+                            let gid, keyHex;
+                            if (isGhost) {
+                                keyHex = nt.generatePrivateKey();
+                                gid = nt.getPublicKey(keyHex);
+                            } else {
+                                const randBytes = sodium.randombytes_buf(32);
+                                keyHex = Array.from(randBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                                gid = (await sha256Hex(nameInput + pubKeyHex)).substring(0, 16);
+                            }
 
-                    groups[gid] = { name: nameInput, key_hex: keyHex, type: isGhost ? 1 : 0, owner: isGhost ? null : pubKeyHex };
-                    syncLocalEncryptedCache();
-                    closeCreateGroupModal();
+                            groups[gid] = { name: nameInput, key_hex: keyHex, type: isGhost ? 1 : 0, owner: isGhost ? null : pubKeyHex };
+                            syncLocalEncryptedCache();
+                            await syncBackupToCloud(); // <-- 触发云端同步
 
-                    // 弹出邀请码并选中该群
-                    await generateInviteLink(gid);
-                    renderContacts();
-                    selectContact(gid);
+                            closeCreateGroupModal();
+                            await generateInviteLink(gid);
+                            renderContacts();
+                            selectContact(gid);
+                            initRelayConnection(); // 重新订阅
 
                     // 下发 REQ 监听该群
                     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2002,7 +2051,6 @@
                     try {
                         const parts = inviteStr.replace('dage://invite/', '').split('/');
                         if (parts.length < 2) throw new Error("格式无效");
-
                         const gTypeStr = parts[0];
                         const b64Payload = parts[1];
                         let rawDataStr = "";
@@ -2010,26 +2058,20 @@
                         if (gTypeStr === "ghost") {
                             const payloadBytes = urlSafeBase64ToBytes(b64Payload);
                             if (payloadBytes.length < 24) throw new Error("数据损坏");
-
                             const nonce = payloadBytes.subarray(0, 24);
                             const ciphertext = payloadBytes.subarray(24);
                             const keyHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('dagechat'));
-
                             const decrypted = sodium.crypto_secretbox_open_easy(ciphertext, nonce, new Uint8Array(keyHash));
                             rawDataStr = new TextDecoder().decode(decrypted);
                         } else if (gTypeStr === "normal") {
                             rawDataStr = new TextDecoder().decode(urlSafeBase64ToBytes(b64Payload));
-                        } else {
-                            throw new Error("未知群类型");
-                        }
+                        } else throw new Error("未知群类型");
 
                         const dataParts = rawDataStr.split('|');
                         if (dataParts.length < 6) throw new Error("数据不完整");
 
                         const[gid, keyHex, owner, safeName, typeStr, checksum] = dataParts;
                         const gType = parseInt(typeStr);
-
-                        // 验证 Checksum 防篡改
                         const expectedChecksum = (await sha256Hex(gid + keyHex + gType + "DAGE_SECURE_V1")).substring(0, 6);
                         if (checksum !== expectedChecksum) throw new Error("校验失败，邀请码已被篡改");
 
@@ -2044,23 +2086,14 @@
 
                         groups[gid] = { name: groupName, key_hex: keyHex, type: gType, owner: owner || null };
                         syncLocalEncryptedCache();
+                        await syncBackupToCloud(); // <-- 触发云端同步
 
                         alert(`✅ 成功加入群聊：${groupName}`);
-
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            const subId = "sub_join_" + gid.substring(0, 8);
-                            const filter = gType === 1 ? { kinds: [1059], "#p": [gid], limit: 50 } : { kinds: [42, 30078], "#g": [gid], limit: 50 };
-                            ws.send(JSON.stringify(["REQ", subId, filter]));
-                        }
-
+                        initRelayConnection(); // 重新订阅
                         renderContacts();
                         selectContact(gid);
-
-                    } catch (e) {
-                        alert("加入群聊失败: " + e.message);
-                    }
+                    } catch (e) { alert("加入群聊失败: " + e.message); }
                 }
-
 
                 async function addContact() {
                             let val = document.getElementById('new-contact-input').value.trim();
