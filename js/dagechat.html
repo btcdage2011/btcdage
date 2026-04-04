@@ -99,12 +99,13 @@
                   <button onclick="logout()" class="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 border border-red-200 rounded-lg bg-white active:bg-red-50 shadow-sm">注销</button>
               </div>
           </div>
-            <div class="p-3 border-b border-gray-200 bg-white shrink-0">
-                <div class="flex space-x-2">
-                    <input type="text" id="new-contact-input" placeholder="粘贴对方 npub 公钥" class="flex-1 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
-                    <button onclick="addContact()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 shadow-sm active:scale-95">添加</button>
-                </div>
-            </div>
+          <div class="p-3 border-b border-gray-200 bg-white shrink-0">
+                          <div class="flex space-x-2">
+                              <input type="text" id="new-contact-input" placeholder="公钥 / 群邀请码 (dage://)" class="flex-1 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
+                              <button onclick="addContact()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 shadow-sm active:scale-95 shrink-0">添加</button>
+                              <button onclick="openCreateGroupModal()" class="bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-indigo-600 shadow-sm active:scale-95 shrink-0" title="创建群组">建群</button>
+                          </div>
+                      </div>
             <div id="contacts-list" class="flex-1 overflow-y-auto no-scrollbar bg-white pb-safe"></div>
         </div>
 
@@ -188,14 +189,14 @@
                 <span id="peer-modal-badge" class="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded mb-4 font-medium hidden">陌生人</span>
 
                 <div class="w-full bg-gray-50 rounded-lg p-3 border border-gray-100 mb-5">
-                    <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Npub 公钥</label>
-                    <div class="flex items-center">
-                        <div id="peer-modal-pubkey" class="text-xs text-gray-600 font-mono truncate flex-1 select-all"></div>
-                        <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('对方公钥已复制！')" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                        </button>
-                    </div>
-                </div>
+                                    <label id="peer-modal-pubkey-label" class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Npub 公钥</label>
+                                    <div class="flex items-center">
+                                        <div id="peer-modal-pubkey" class="text-xs text-gray-600 font-mono truncate flex-1 select-all"></div>
+                                        <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('ID 已复制！')" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                        </button>
+                                    </div>
+                                </div>
 
                 <div id="peer-action-btn-area" class="w-full">
                     <!-- 动态渲染：添加好友 或 删除好友 按钮 -->
@@ -325,6 +326,45 @@
             </button>
             <img id="viewer-img" class="max-w-full max-h-full object-contain cursor-zoom-out select-none" src="">
         </div>
+
+        <!-- ================= 创建群组 弹窗 ================= -->
+            <div id="create-group-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[70] flex items-center justify-center p-4">
+                <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">创建新群组</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">群组名称</label>
+                            <input type="text" id="new-group-name" placeholder="输入群组名称..." class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div class="flex items-center mt-2 cursor-pointer" onclick="document.getElementById('new-group-isghost').click()">
+                            <input type="checkbox" id="new-group-isghost" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer pointer-events-none">
+                            <span class="ml-2 block text-sm text-gray-800 font-medium">创建为共享密钥群 (幽灵群 ⚡)</span>
+                        </div>
+                        <p class="text-xs text-gray-500 leading-relaxed">
+                            * <b>普通群 📢</b>：群主可管理，所有客户端可见。<br>
+                            * <b>共享密钥群 ⚡</b>：极其匿名，群成员共用一把私钥收发信，无法追踪真实身份。
+                        </p>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button onclick="closeCreateGroupModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
+                        <button onclick="submitCreateGroup()" class="px-5 py-2.5 text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition shadow-sm active:scale-95">生成群组并获取邀请码</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= 邀请码展示 弹窗 ================= -->
+            <div id="invite-code-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[80] flex items-center justify-center p-4">
+                <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+                    <h3 class="text-lg font-bold text-gray-800 mb-2">群组邀请码</h3>
+                    <p class="text-xs text-gray-500 mb-4">复制下方邀请码发送给好友，对方在添加栏粘贴即可加入。</p>
+                    <textarea id="invite-code-display" readonly rows="5" class="w-full border border-gray-300 rounded-lg p-3 text-xs text-gray-600 bg-gray-50 focus:outline-none resize-none break-all"></textarea>
+                    <div class="mt-5 flex justify-end space-x-3">
+                        <button onclick="document.getElementById('invite-code-modal').classList.add('hidden')" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">关闭</button>
+                        <button onclick="copyText(document.getElementById('invite-code-display').value); alert('邀请码已复制！'); document.getElementById('invite-code-modal').classList.add('hidden');" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">复制邀请码</button>
+                    </div>
+                </div>
+            </div>
+
     <!-- ================= 核心 JavaScript ================= -->
     <script>
         let nt;
@@ -363,6 +403,30 @@
         let useNip59 = true;
 
         // ================= 工具函数 =================
+
+        function bytesToUrlSafeBase64(bytes) {
+                    let binary = '';
+                    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+                    return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                }
+
+                function urlSafeBase64ToBytes(base64) {
+                    let b64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+                    while (b64.length % 4) b64 += '=';
+                    let binary_string = window.atob(b64);
+                    let len = binary_string.length;
+                    let bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) bytes[i] = binary_string.charCodeAt(i);
+                    return bytes;
+                }
+
+                async function sha256Hex(str) {
+                    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+                    const hashArray = Array.from(new Uint8Array(hashBuffer));
+                    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                }
+
+
         // ================= 自签名证书引导功能 =================
                 function checkWssTrustLink(inputId, hintId) {
                     let val = document.getElementById(inputId).value.trim();
@@ -928,10 +992,11 @@
         }
 
         function syncLocalEncryptedCache() {
-            saveEncryptedData('hidden_ids', Array.from(hiddenMsgsSet));
-            saveEncryptedData('msg_cache', messages);
-            saveEncryptedData('unread_counts', unreadCounts);
-        }
+                    saveEncryptedData('hidden_ids', Array.from(hiddenMsgsSet));
+                    saveEncryptedData('msg_cache', messages);
+                    saveEncryptedData('unread_counts', unreadCounts);
+                    saveEncryptedData('groups_cache', groups); // 保存群组
+                }
 
         // ================= 初始化与登录 =================
         window.onload = async () => {
@@ -972,6 +1037,7 @@
             hiddenMsgsSet = new Set(hiddenArr);
             messages = await loadEncryptedData('msg_cache', {});
             unreadCounts = await loadEncryptedData('unread_counts', {});
+            groups = await loadEncryptedData('groups_cache', {}); // 载入群组
 
             renderContacts();
             initRelayConnection();
@@ -1269,7 +1335,7 @@
             const list = document.getElementById('contacts-list');
             list.innerHTML = '';
 
-            let allChatPks = new Set([...contacts, ...Object.keys(messages)]);
+            let allChatPks = new Set([...contacts, ...Object.keys(messages), ...Object.keys(groups)]);
             allChatPks.add(pubKeyHex);
 
             let sortedContacts = Array.from(allChatPks).sort((a, b) => {
@@ -1284,12 +1350,25 @@
             });
 
             sortedContacts.forEach(pk => {
-                let prof = profiles[pk] || { name: nt.nip19.npubEncode(pk).substring(0, 10) + '...' };
+                let isGroup = !!groups[pk];
+                let prof = isGroup ? groups[pk] : (profiles[pk] || { name: nt.nip19.npubEncode(pk).substring(0, 10) + '...' });
                 let isCurrent = (currentChatPk === pk);
-                let isStranger = !contacts.includes(pk) && pk !== pubKeyHex;
+                let isStranger = !isGroup && !contacts.includes(pk) && pk !== pubKeyHex;
 
-                let displayName = pk === pubKeyHex ? `${prof.name || '我'} (备忘录 💾)` : prof.name;
-                let picUrl = formatAvatarUrl(prof.picture);
+                let displayName = prof.name;
+                let avatarBadge = '';
+
+                if (pk === pubKeyHex) {
+                    displayName = `${prof.name || '我'} (备忘录 💾)`;
+                } else if (isGroup) {
+                    if (prof.type === 1) {
+                        displayName = `[共享群] ${prof.name}`;
+                        avatarBadge = '⚡';
+                    } else {
+                        displayName = `[群聊] ${prof.name}`;
+                        avatarBadge = '📢';
+                    }
+                }
 
                 let div = document.createElement('div');
                 div.className = `p-3 md:p-4 flex items-center space-x-3 cursor-pointer border-b border-gray-100 transition ${isCurrent ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50 border-l-4 border-transparent active:bg-gray-100'}`;
@@ -1298,22 +1377,31 @@
                 let unread = unreadCounts[pk] || 0;
                 let unreadBadge = unread > 0 ? `<div class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[20px] h-[20px] flex items-center justify-center rounded-full border-2 border-white shadow-sm px-1">${unread > 99 ? '99+' : unread}</div>` : '';
 
+                let picUrl = isGroup ? '' : formatAvatarUrl(prof.picture);
+                let avatarInner = picUrl ? `<img src="${picUrl}" class="w-12 h-12 rounded-full object-cover">` : `<div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-lg">${avatarBadge || (prof.name ? prof.name.substring(0,1) : '?')}</div>`;
+
+                if (isGroup && prof.type === 1) {
+                    avatarInner = `<div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-sm border border-purple-400">⚡</div>`;
+                } else if (isGroup && prof.type === 0) {
+                    avatarInner = `<div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-sm border border-green-400">📢</div>`;
+                }
+
                 let avatarHtml = `
                     <div class="relative shrink-0">
-                        ${picUrl ? `<img src="${picUrl}" class="w-12 h-12 rounded-full object-cover">` : `<div class="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-lg">${prof.name ? prof.name.substring(0,1) : '?'}</div>`}
+                        ${avatarInner}
                         ${unreadBadge}
                     </div>
                 `;
 
                 let msgs = messages[pk] ||[];
-                let rawLastMsg = msgs.length > 0 ? msgs[msgs.length - 1].text : '暂无消息...';
+                let rawLastMsg = msgs.length > 0 ? msgs[msgs.length - 1].text : (isGroup ? '暂无群消息...' : '暂无消息...');
                 let parsedLast = parseMessageContent(rawLastMsg);
                 let displayLast = (parsedLast.text !== undefined && parsedLast.text !== "") ? parsedLast.text : (parsedLast.imageB64 ? "[图片]" : rawLastMsg);
 
                 let lastMsg = displayLast.substring(0, 20);
                 let strangerBadge = isStranger ? `<span class="ml-1.5 px-1 py-0.5 bg-gray-200 text-gray-500 text-[9px] rounded whitespace-nowrap align-middle">陌生人</span>` : '';
 
-                div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 text-base md:text-sm truncate leading-tight">${displayName}${strangerBadge}</div><div class="text-sm md:text-xs text-gray-500 truncate mt-1">${escapeHTML(lastMsg)}</div></div>`;
+                div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 text-base md:text-sm truncate leading-tight">${escapeHTML(displayName)}${strangerBadge}</div><div class="text-sm md:text-xs text-gray-500 truncate mt-1">${escapeHTML(lastMsg)}</div></div>`;
                 list.appendChild(div);
             });
         }
@@ -1341,14 +1429,26 @@
 
         function updateChatHeader() {
             if(!currentChatPk) return;
-            let prof = profiles[currentChatPk] || { name: nt.nip19.npubEncode(currentChatPk).substring(0,10)+'...' };
+            let isGroup = !!groups[currentChatPk];
+            let prof = isGroup ? groups[currentChatPk] : (profiles[currentChatPk] || { name: nt.nip19.npubEncode(currentChatPk).substring(0,10)+'...' });
 
-            let displayName = currentChatPk === pubKeyHex ? `${prof.name || '我'} (备忘录 💾)` : prof.name;
+            let displayName = prof.name;
+            if (currentChatPk === pubKeyHex) {
+                displayName = `${prof.name || '我'} (备忘录 💾)`;
+            } else if (isGroup) {
+                displayName = prof.type === 1 ? `[共享群] ${prof.name}` : `[普通群] ${prof.name}`;
+            }
+
             document.getElementById('chat-name').innerText = displayName;
-
-            let picUrl = formatAvatarUrl(prof.picture);
+            let picUrl = isGroup ? '' : formatAvatarUrl(prof.picture);
             let avatarBox = document.getElementById('chat-avatar');
-            if(picUrl) {
+
+            if (isGroup) {
+                let badgeIcon = prof.type === 1 ? '⚡' : '📢';
+                let bgColor = prof.type === 1 ? 'bg-purple-500' : 'bg-green-500';
+                avatarBox.innerHTML = `<div class="w-full h-full ${bgColor} rounded-full flex items-center justify-center text-white text-xl font-bold">${badgeIcon}</div>`;
+                avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
+            } else if(picUrl) {
                 avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
                 avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
             } else {
@@ -1455,27 +1555,55 @@
         // ================= 对方资料卡与加好友 =================
         function showPeerProfileModal() {
             if(!currentChatPk) return;
-            let prof = profiles[currentChatPk] || { name: '未知用户' };
-            let isStranger = !contacts.includes(currentChatPk) && currentChatPk !== pubKeyHex;
 
-            let displayName = currentChatPk === pubKeyHex ? `${prof.name || '我'} (备忘录 💾)` : prof.name;
+            let isGroup = !!groups[currentChatPk];
+            let prof = isGroup ? groups[currentChatPk] : (profiles[currentChatPk] || { name: '未知用户' });
+            let isStranger = !isGroup && !contacts.includes(currentChatPk) && currentChatPk !== pubKeyHex;
+
+            let displayName = prof.name;
+            let displayId = isGroup ? "群组 ID / 公钥" : "Npub 公钥";
+            let displayPubkeyText = currentChatPk;
+
+            if (currentChatPk === pubKeyHex) {
+                displayName = `${prof.name || '我'} (备忘录 💾)`;
+            } else if (!isGroup) {
+                displayPubkeyText = nt.nip19.npubEncode(currentChatPk);
+            }
+
             document.getElementById('peer-modal-name').innerText = displayName;
-            document.getElementById('peer-modal-pubkey').innerText = nt.nip19.npubEncode(currentChatPk);
+            document.getElementById('peer-modal-pubkey-label').innerText = displayId;
+            document.getElementById('peer-modal-pubkey').innerText = displayPubkeyText;
 
-            let picUrl = formatAvatarUrl(prof.picture);
             let avatarBox = document.getElementById('peer-modal-avatar');
-            if(picUrl) {
+            avatarBox.classList.replace('bg-white', 'bg-transparent');
+            avatarBox.classList.replace('bg-transparent', 'bg-white');
+
+            if (isGroup) {
+                let badgeIcon = prof.type === 1 ? '⚡' : '📢';
+                let bgColor = prof.type === 1 ? 'bg-purple-500' : 'bg-green-500';
+                avatarBox.innerHTML = `<div class="w-full h-full ${bgColor} flex items-center justify-center text-white text-4xl font-bold">${badgeIcon}</div>`;
+            } else if(prof.picture) {
+                let picUrl = formatAvatarUrl(prof.picture);
                 avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
                 avatarBox.classList.replace('bg-white', 'bg-transparent');
             } else {
                 avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
-                avatarBox.classList.replace('bg-transparent', 'bg-white');
             }
 
             let badge = document.getElementById('peer-modal-badge');
             let actionArea = document.getElementById('peer-action-btn-area');
 
-            if (currentChatPk === pubKeyHex) {
+            if (isGroup) {
+                badge.classList.remove('hidden');
+                badge.innerText = prof.type === 1 ? '共享群组 (匿名)' : '普通群组';
+                badge.classList.replace('bg-gray-100', 'bg-indigo-100');
+                badge.classList.replace('text-gray-500', 'text-indigo-600');
+
+                actionArea.innerHTML = `
+                    <button onclick="generateInviteLink('${currentChatPk}')" class="w-full bg-blue-500 text-white py-3.5 rounded-xl hover:bg-blue-600 transition shadow font-medium active:scale-95 text-sm flex items-center justify-center mb-3">🎫 生成/查看邀请码</button>
+                    <button onclick="exitGroupFromModal('${currentChatPk}')" class="w-full bg-red-50 text-red-500 py-3.5 rounded-xl hover:bg-red-100 transition shadow-sm font-medium border border-red-100 active:scale-95 text-sm flex items-center justify-center">👋 退出群聊 (清除数据)</button>
+                `;
+            } else if (currentChatPk === pubKeyHex) {
                 badge.classList.remove('hidden');
                 badge.innerText = '备忘录';
                 badge.classList.replace('bg-gray-100', 'bg-blue-100');
@@ -1494,6 +1622,20 @@
 
             document.getElementById('peer-profile-modal').classList.remove('hidden');
             setTimeout(() => document.getElementById('peer-profile-content').classList.remove('scale-95'), 10);
+        }
+
+        function exitGroupFromModal(gid) {
+            if (!confirm(`确定要退出群聊【${groups[gid].name}】吗？\n退出后将清除本地数据，重新加入需要新的邀请码。`)) return;
+
+            delete groups[gid];
+            messages[gid] = [];
+            delete unreadCounts[gid];
+            syncLocalEncryptedCache();
+
+            renderContacts();
+            closePeerProfileModal();
+            closeChat({stopPropagation: () => {}});
+            alert("已退出群聊！");
         }
 
         function closePeerProfileModal() {
@@ -1583,17 +1725,164 @@
             alert("设置已保存！");
         }
 
-        async function addContact() {
-            let val = document.getElementById('new-contact-input').value.trim();
-            if (!val) return;
-            try {
-                let pkToAdd = val.startsWith('npub') ? nt.nip19.decode(val).data : val;
-                if (pkToAdd === pubKeyHex || contacts.includes(pkToAdd)) return alert("无效操作或已存在");
-                contacts.push(pkToAdd); document.getElementById('new-contact-input').value = '';
-                await publishEvent(3, "", contacts.map(c =>["p", c]));
-                renderContacts(); alert("已添加为好友！");
-            } catch (e) { alert("公钥格式错误"); }
-        }
+        function openCreateGroupModal() {
+                    document.getElementById('new-group-name').value = '';
+                    document.getElementById('new-group-isghost').checked = false;
+                    document.getElementById('create-group-modal').classList.remove('hidden');
+                }
+                function closeCreateGroupModal() { document.getElementById('create-group-modal').classList.add('hidden'); }
+
+                async function submitCreateGroup() {
+                    const nameInput = document.getElementById('new-group-name').value.trim();
+                    const isGhost = document.getElementById('new-group-isghost').checked;
+
+                    if (!nameInput) return alert("请输入群组名称");
+
+                    let gid, keyHex;
+                    if (isGhost) {
+                        // 幽灵群的私钥和公钥 (纯数学生成)
+                        keyHex = nt.generatePrivateKey();
+                        gid = nt.getPublicKey(keyHex);
+                    } else {
+                        // 普通群：随机32字节对称密钥，ID为名称+创建者公钥的哈希
+                        const randBytes = sodium.randombytes_buf(32);
+                        keyHex = Array.from(randBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                        gid = (await sha256Hex(nameInput + pubKeyHex)).substring(0, 16);
+                    }
+
+                    groups[gid] = { name: nameInput, key_hex: keyHex, type: isGhost ? 1 : 0, owner: isGhost ? null : pubKeyHex };
+                    syncLocalEncryptedCache();
+                    closeCreateGroupModal();
+
+                    // 弹出邀请码并选中该群
+                    await generateInviteLink(gid);
+                    renderContacts();
+                    selectContact(gid);
+
+                    // 下发 REQ 监听该群
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const subId = "sub_group_" + gid.substring(0, 8);
+                        const filter = isGhost ? { kinds: [1059], "#p": [gid], limit: 50 } : { kinds:[42, 30078], "#g": [gid], limit: 50 };
+                        ws.send(JSON.stringify(["REQ", subId, filter]));
+                    }
+                }
+
+                async function generateInviteLink(gid) {
+                    const grp = groups[gid];
+                    if (!grp) return;
+
+                    const gType = grp.type;
+                    const owner = grp.owner || "";
+                    const safeName = bytesToUrlSafeBase64(new TextEncoder().encode(grp.name));
+                    const checksum = (await sha256Hex(gid + grp.key_hex + gType + "DAGE_SECURE_V1")).substring(0, 6);
+
+                    const rawDataStr = `${gid}|${grp.key_hex}|${owner}|${safeName}|${gType}|${checksum}`;
+                    let inviteLink = "";
+
+                    if (gType === 1) {
+                        // 幽灵群邀请码需要走 SecretBox (XSalsa20-Poly1305) 混淆加密，密码固定为 sha256('dagechat')
+                        const keyHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('dagechat'));
+                        const key = new Uint8Array(keyHash);
+                        const nonce = sodium.randombytes_buf(24);
+                        const dataBytes = new TextEncoder().encode(rawDataStr);
+
+                        const ciphertext = sodium.crypto_secretbox_easy(dataBytes, nonce, key);
+                        const payload = new Uint8Array(24 + ciphertext.length);
+                        payload.set(nonce, 0);
+                        payload.set(ciphertext, 24);
+
+                        inviteLink = `dage://invite/ghost/${bytesToUrlSafeBase64(payload)}`;
+                    } else {
+                        inviteLink = `dage://invite/normal/${bytesToUrlSafeBase64(new TextEncoder().encode(rawDataStr))}`;
+                    }
+
+                    document.getElementById('invite-code-display').value = inviteLink;
+                    document.getElementById('invite-code-modal').classList.remove('hidden');
+                }
+
+                async function joinGroup(inviteStr) {
+                    try {
+                        const parts = inviteStr.replace('dage://invite/', '').split('/');
+                        if (parts.length < 2) throw new Error("格式无效");
+
+                        const gTypeStr = parts[0];
+                        const b64Payload = parts[1];
+                        let rawDataStr = "";
+
+                        if (gTypeStr === "ghost") {
+                            const payloadBytes = urlSafeBase64ToBytes(b64Payload);
+                            if (payloadBytes.length < 24) throw new Error("数据损坏");
+
+                            const nonce = payloadBytes.subarray(0, 24);
+                            const ciphertext = payloadBytes.subarray(24);
+                            const keyHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('dagechat'));
+
+                            const decrypted = sodium.crypto_secretbox_open_easy(ciphertext, nonce, new Uint8Array(keyHash));
+                            rawDataStr = new TextDecoder().decode(decrypted);
+                        } else if (gTypeStr === "normal") {
+                            rawDataStr = new TextDecoder().decode(urlSafeBase64ToBytes(b64Payload));
+                        } else {
+                            throw new Error("未知群类型");
+                        }
+
+                        const dataParts = rawDataStr.split('|');
+                        if (dataParts.length < 6) throw new Error("数据不完整");
+
+                        const[gid, keyHex, owner, safeName, typeStr, checksum] = dataParts;
+                        const gType = parseInt(typeStr);
+
+                        // 验证 Checksum 防篡改
+                        const expectedChecksum = (await sha256Hex(gid + keyHex + gType + "DAGE_SECURE_V1")).substring(0, 6);
+                        if (checksum !== expectedChecksum) throw new Error("校验失败，邀请码已被篡改");
+
+                        let groupName = "Unknown Group";
+                        try { groupName = new TextDecoder().decode(urlSafeBase64ToBytes(safeName)); } catch(e) {}
+
+                        if (groups[gid]) {
+                            alert(`您已在群组【${groupName}】中！`);
+                            selectContact(gid);
+                            return;
+                        }
+
+                        groups[gid] = { name: groupName, key_hex: keyHex, type: gType, owner: owner || null };
+                        syncLocalEncryptedCache();
+
+                        alert(`✅ 成功加入群聊：${groupName}`);
+
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            const subId = "sub_join_" + gid.substring(0, 8);
+                            const filter = gType === 1 ? { kinds: [1059], "#p": [gid], limit: 50 } : { kinds: [42, 30078], "#g": [gid], limit: 50 };
+                            ws.send(JSON.stringify(["REQ", subId, filter]));
+                        }
+
+                        renderContacts();
+                        selectContact(gid);
+
+                    } catch (e) {
+                        alert("加入群聊失败: " + e.message);
+                    }
+                }
+
+
+                async function addContact() {
+                            let val = document.getElementById('new-contact-input').value.trim();
+                            if (!val) return;
+
+                            // 拦截并解析群组邀请码
+                            if (val.startsWith('dage://invite/')) {
+                                await joinGroup(val);
+                                document.getElementById('new-contact-input').value = '';
+                                return;
+                            }
+
+                            try {
+                                let pkToAdd = val.startsWith('npub') ? nt.nip19.decode(val).data : val;
+                                if (pkToAdd === pubKeyHex || contacts.includes(pkToAdd)) return alert("无效操作或已存在");
+                                contacts.push(pkToAdd); document.getElementById('new-contact-input').value = '';
+                                await publishEvent(3, "", contacts.map(c =>["p", c]));
+                                renderContacts(); alert("已添加为好友！");
+                            } catch (e) { alert("公钥格式错误"); }
+                        }
     </script>
 </body>
 </html>
