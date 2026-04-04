@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.0.6</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.16</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -42,16 +42,14 @@
             </button>
             <h2 class="text-2xl font-bold text-gray-800 mb-6">添加账号</h2>
             <div class="space-y-5">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Relay 节点池 (多个用逗号分隔)</label>
-                    <input type="text" id="relay-input" class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none" value="wss://relay.snort.social" oninput="checkWssTrustLink('relay-input', 'trust-hint-login')">
-
-                    <!-- 新增：自签名证书引导 -->
-                    <div id="trust-hint-login" class="hidden mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100 shadow-sm">
-                        <span>⚠️ 若为自签名节点，连接前请先：</span>
-                        <a href="#" id="trust-hint-login-link" target="_blank" class="text-blue-600 font-bold underline ml-1 whitespace-nowrap">点击此处信任证书</a>
-                    </div>
-                </div>
+              <!-- 登录前：通过按钮打开统一的 Relay 管理器 -->
+                              <div>
+                                  <label class="block text-sm font-medium text-gray-700 mb-1">网络与节点设置</label>
+                                  <button onclick="openRelayManager()" class="w-full bg-gray-50 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-100 transition shadow-sm border border-gray-200 font-medium flex items-center justify-center active:scale-95">
+                                      <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                      配置 Relay 节点 (当前已选 <span id="pre-login-relay-count" class="mx-1 text-blue-600 font-bold">3</span> 个)
+                                  </button>
+                              </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">私钥 (nsec / hex)</label>
                     <input type="password" id="sk-input" class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 font-mono text-base outline-none" placeholder="输入现有私钥...">
@@ -469,7 +467,7 @@
         let relayStates = {}; // 记录节点详细状态: { url: { status: 0/1/2, ping: -1, startTs: 0 } }
         let relayManagerTimer = null; // 节点管理器UI的刷新定时器
 
-        let currentRelayUrls = ["wss://relay.snort.social", "wss://relay.damus.io"]; // 默认双节点并发
+        let currentRelayUrls = ["wss://relay.damus.io", "wss://relay.primal.net", "wss://relay.snort.social"];
         let ws = null;
         let reconnectTimer = null;
 
@@ -1083,8 +1081,11 @@
         function showAddAccountArea() {
             document.getElementById('account-list-area').classList.add('hidden');
             document.getElementById('add-account-area').classList.remove('hidden');
-            // 弹窗开启时自动检测当前输入框并更新提示
-            checkWssTrustLink('relay-input', 'trust-hint-login');
+
+            // 初始化默认节点并更新 UI 上的数字
+            currentRelayUrls = ["wss://relay.damus.io", "wss://relay.primal.net", "wss://relay.snort.social"];
+            let countEl = document.getElementById('pre-login-relay-count');
+            if (countEl) countEl.innerText = currentRelayUrls.length;
         }
 
         function hideAddAccountArea() {
@@ -1190,8 +1191,9 @@
                 accounts.push({ pubkey: pk, npub: npub, name: '', picture: '', encPrivKey: encSk });
                 localStorage.setItem('dage_accounts', JSON.stringify(accounts));
 
-                let inputRelay = document.getElementById('relay-input').value.trim();
-                if(inputRelay) localStorage.setItem(`dage_relay_${pk}`, inputRelay);
+                if (currentRelayUrls.length > 0) {
+                  localStorage.setItem(`dage_relay_${pk}`, currentRelayUrls.join(','));
+              }
 
                 closePwdSetupModal();
                 alert("账号添加成功并已加密存储！");
@@ -1437,16 +1439,21 @@
             currentRelayUrls.forEach(url => {
                 let state = relayStates[url] || { status: 0, ping: -1 };
 
-                let statusText = "断开"; let statusColor = "text-red-500"; let pingText = "--";
-                if (state.status === 1) { statusText = "连接中"; statusColor = "text-yellow-500"; }
-                else if (state.status === 2) {
-                    statusText = "在线"; statusColor = "text-green-500";
-                    pingText = state.ping > 0 ? `${state.ping}ms` : "--";
+                let statusText = "待登录"; let statusColor = "text-gray-400"; let pingText = "--";
+
+                // 只有登录后（pubKeyHex存在）才显示真实的连接状态
+                if (pubKeyHex) {
+                    if (state.status === 0) { statusText = "断开"; statusColor = "text-red-500"; }
+                    else if (state.status === 1) { statusText = "连接中"; statusColor = "text-yellow-500"; }
+                    else if (state.status === 2) {
+                        statusText = "在线"; statusColor = "text-green-500";
+                        pingText = state.ping > 0 ? `${state.ping}ms` : "--";
+                    }
                 }
 
-                // 自签名证书信任引导
+                // 自签名证书信任引导 (仅在登录后且断开时显示)
                 let trustHtml = "";
-                if (state.status === 0 && url.startsWith('wss://')) {
+                if (pubKeyHex && state.status === 0 && url.startsWith('wss://')) {
                     let httpsUrl = url.replace('wss://', 'https://');
                     trustHtml = `<a href="${httpsUrl}" target="_blank" class="ml-3 text-[11px] text-red-500 bg-red-50 border border-red-100 px-2 py-0.5 rounded hover:bg-red-100 transition whitespace-nowrap shadow-sm font-bold">⚠️ 信任证书</a>`;
                 }
@@ -1482,10 +1489,17 @@
             }
 
             currentRelayUrls.push(url);
-            localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
             document.getElementById('new-relay-input').value = '';
 
-            initRelayConnection(); // 触发重新连接
+            // 区分登录前后的保存逻辑
+            if (pubKeyHex) {
+                localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
+                initRelayConnection();
+            } else {
+                let countEl = document.getElementById('pre-login-relay-count');
+                if (countEl) countEl.innerText = currentRelayUrls.length;
+            }
+
             renderRelayManagerList();
         }
 
@@ -1493,20 +1507,25 @@
             if (!confirm(`确定要移除节点 ${url} 吗？`)) return;
 
             currentRelayUrls = currentRelayUrls.filter(u => u !== url);
-            localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
 
-            if (wsPool[url]) {
-                wsPool[url].onclose = null;
-                wsPool[url].close();
-                delete wsPool[url];
+            if (pubKeyHex) {
+                localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
+                if (wsPool[url]) {
+                    wsPool[url].onclose = null;
+                    wsPool[url].close();
+                    delete wsPool[url];
+                }
+                if (reconnectTimers[url]) {
+                    clearTimeout(reconnectTimers[url]);
+                    delete reconnectTimers[url];
+                }
+                delete relayStates[url];
+                updateRelayStatusUI();
+            } else {
+                let countEl = document.getElementById('pre-login-relay-count');
+                if (countEl) countEl.innerText = currentRelayUrls.length;
             }
-            if (reconnectTimers[url]) {
-                clearTimeout(reconnectTimers[url]);
-                delete reconnectTimers[url];
-            }
-            delete relayStates[url];
 
-            updateRelayStatusUI();
             renderRelayManagerList();
         }
 
