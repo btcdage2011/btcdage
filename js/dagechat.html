@@ -1085,7 +1085,13 @@
             if(!pubKeyHex) return;
             isLocked = true;
             privKeyHex = null;
-            if(ws) { ws.onclose = null; ws.close(); ws = null; }
+            for (let url in wsPool) {
+                if (wsPool[url]) {
+                    wsPool[url].onclose = null;
+                    wsPool[url].close();
+                }
+            }
+            wsPool = {};
             document.getElementById('app-screen').classList.add('hidden');
             document.getElementById('lock-screen').classList.remove('hidden');
 
@@ -1367,7 +1373,10 @@
 
         function logout() {
             privKeyHex = null; pubKeyHex = null; isLocked = false;
-            if(ws) { ws.close(); ws = null; }
+            for (let url in wsPool) {
+                if (wsPool[url]) wsPool[url].close();
+            }
+            wsPool = {};
             window.location.reload();
         }
 
@@ -1841,9 +1850,7 @@
                         if (currentChatPk === peerPk) renderMessages(isNewRealTimeMsg);
 
                         if (!profiles[senderPk] && senderPk !== pubKeyHex) {
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), { kinds: [0], authors: [senderPk] }]));
-                            }
+                            broadcastToRelays(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), { kinds: [0], authors: [senderPk] }]));
                         }
                         renderContacts();
                     }
@@ -2674,7 +2681,7 @@
                                     if (currentReplyId) tags.push(["e", currentReplyId, "", "reply"]);
 
                                     let { wrapEvent, rumorId } = await makeGiftWrap(grp.key_hex, currentChatPk, payloadStr, 14, tags);
-                                    if (ws && ws.readyState === WebSocket.OPEN) broadcastToRelays(JSON.stringify(["EVENT", wrapEvent]));
+                                    broadcastToRelays(JSON.stringify(["EVENT", wrapEvent]));
 
                                     if (!messages[currentChatPk]) messages[currentChatPk] = [];
                                     messages[currentChatPk].push({ id: rumorId, sender: currentChatPk, text: payloadStr, time: nowTs, enc_type: 59, reply_to_id: currentReplyId });
@@ -2700,7 +2707,7 @@
 
                                     let difficulty = currentChatPk === "feb75fb664b41f95" ? 16 : 8;
                                     let event = minePowAndSign(privKeyHex, 42, b64Content, tags, difficulty);
-                                    if (ws && ws.readyState === WebSocket.OPEN) broadcastToRelays(JSON.stringify(["EVENT", event]));
+                                    broadcastToRelays(JSON.stringify(["EVENT", event]));
 
                                     if (!messages[currentChatPk]) messages[currentChatPk] = [];
                                     messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payloadStr, time: event.created_at, enc_type: 0, reply_to_id: currentReplyId });
@@ -2715,11 +2722,11 @@
 
                                 if (useNip59) {
                                     let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payloadStr, 14, tags);
-                                    if (ws && ws.readyState === WebSocket.OPEN) broadcastToRelays(JSON.stringify(["EVENT", wrapEvent]));
+                                    broadcastToRelays(JSON.stringify(["EVENT", wrapEvent]));
 
                                     if (currentChatPk !== pubKeyHex) {
                                         let selfWrap = await makeGiftWrap(privKeyHex, pubKeyHex, payloadStr, 14, tags);
-                                        if (ws && ws.readyState === WebSocket.OPEN) broadcastToRelays(JSON.stringify(["EVENT", selfWrap.wrapEvent]));
+                                        broadcastToRelays(JSON.stringify(["EVENT", selfWrap.wrapEvent]));
                                     }
 
                                     if (!messages[currentChatPk]) messages[currentChatPk] = [];
