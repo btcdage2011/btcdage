@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.20</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.21</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -1700,19 +1700,32 @@
             // === 新增：如果在黑名单中，直接丢弃其产生的任何外层事件 ===
             if (blocklist.has(ev.pubkey)) return;
             if (ev.kind === 0) {
-                try {
-                    profiles[ev.pubkey] = JSON.parse(ev.content);
-                    if (ev.pubkey === pubKeyHex) {
-                        document.getElementById('my-name').innerText = profiles[ev.pubkey].name || '我';
-                        if (profiles[ev.pubkey].picture) {
-                            let picUrl = formatAvatarUrl(profiles[ev.pubkey].picture);
-                            document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                            try {
+                                // 解析名片
+                                let newProfile = JSON.parse(ev.content);
+                                // 兼容一下双字段
+                                if (newProfile.ln && !newProfile.lud16) newProfile.lud16 = newProfile.ln;
+                                profiles[ev.pubkey] = newProfile;
+
+                                if (ev.pubkey === pubKeyHex) {
+                                    document.getElementById('my-name').innerText = profiles[ev.pubkey].name || '我';
+                                    if (profiles[ev.pubkey].picture) {
+                                        let picUrl = formatAvatarUrl(profiles[ev.pubkey].picture);
+                                        document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                                    }
+                                }
+
+                                renderContacts();
+                                if (currentChatPk === ev.pubkey) updateChatHeader();
+
+                                // === 新增：如果当前正打开着这个人的资料卡，立刻进行热更新！ ===
+                                let peerModal = document.getElementById('peer-profile-modal');
+                                if (!peerModal.classList.contains('hidden') && currentChatPk === ev.pubkey) {
+                                    // 重新调用函数，用最新的 profiles[ev.pubkey] 渲染画面
+                                    showPeerProfileModal();
+                                }
+                            } catch(e) {}
                         }
-                    }
-                    renderContacts();
-                    if (currentChatPk === ev.pubkey) updateChatHeader();
-                } catch(e) {}
-            }
 
             if (ev.kind === 3 && ev.pubkey === pubKeyHex) {
                 let newContacts = ev.tags.filter(t => t[0] === 'p').map(t => t[1]);
@@ -2798,6 +2811,12 @@
             document.getElementById('peer-modal-pubkey-label').innerText = displayId;
             document.getElementById('peer-modal-pubkey').innerText = displayPubkeyText;
 
+
+            // === 新增：每次打开资料卡，强制去网络拉取一下最新的 Kind 0，防止缓存不全 ===
+                if (!isGroup) {
+                    broadcastToRelays(JSON.stringify(["REQ", "fetch-live-profile-" + Date.now(), { kinds: [0], authors: [currentChatPk] }]));
+                }
+
             // 处理头像
             let avatarBox = document.getElementById('peer-modal-avatar');
             avatarBox.classList.replace('bg-white', 'bg-transparent');
@@ -2961,7 +2980,8 @@
         // ================= 个人资料业务 (支持全字段) =================
         function showProfileModal() {
             document.getElementById('profile-modal').classList.remove('hidden');
-            let p = profiles[pubKeyHex] || {};
+            let accInfo = accounts.find(a => a.pubkey === pubKeyHex) || {};
+            let p = profiles[pubKeyHex] || accInfo;
 
             document.getElementById('edit-name').value = p.name || '';
             document.getElementById('edit-avatar').value = p.picture || '';
@@ -2999,32 +3019,45 @@
             let relaysDisplay = document.getElementById('edit-relays-display').value.trim();
 
             if (!profiles[pubKeyHex]) profiles[pubKeyHex] = {};
-            profiles[pubKeyHex].name = name;
-            profiles[pubKeyHex].picture = pic;
-            profiles[pubKeyHex].about = about;
-            profiles[pubKeyHex].website = website;
-            profiles[pubKeyHex].lud16 = ln;
-            profiles[pubKeyHex].relays = relaysDisplay;
+              profiles[pubKeyHex].name = name;
+              profiles[pubKeyHex].picture = pic;
+              profiles[pubKeyHex].about = about;
+              profiles[pubKeyHex].website = website;
+              profiles[pubKeyHex].lud16 = ln;
+              profiles[pubKeyHex].ln = ln; // 额外缓存
+              profiles[pubKeyHex].relays = relaysDisplay;
 
-            if (name) document.getElementById('my-name').innerText = name;
-            if (pic) document.getElementById('my-avatar').innerHTML = `<img src="${pic}" class="w-full h-full object-cover">`;
+              if (name) document.getElementById('my-name').innerText = name;
+              if (pic) document.getElementById('my-avatar').innerHTML = `<img src="${pic}" class="w-full h-full object-cover">`;
 
-            let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
-            if(accIdx > -1) {
-                accounts[accIdx].name = name || accounts[accIdx].name;
-                accounts[accIdx].picture = pic || accounts[accIdx].picture;
-                localStorage.setItem('dage_accounts', JSON.stringify(accounts));
-            }
+              let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
+              if(accIdx > -1) {
+                  accounts[accIdx].name = name || accounts[accIdx].name;
+                  accounts[accIdx].picture = pic || accounts[accIdx].picture;
+                  // 把其他字段也存入本地，防刷新丢失
+                  accounts[accIdx].about = about;
+                  accounts[accIdx].website = website;
+                  accounts[accIdx].ln = ln;
+                  accounts[accIdx].relays = relaysDisplay;
+                  localStorage.setItem('dage_accounts', JSON.stringify(accounts));
+              }
 
-            if (name || pic || about || website || ln || relaysDisplay) {
-                await publishEvent(0, JSON.stringify({
-                    name, picture: pic, about, website, lud16: ln, relays: relaysDisplay
-                }));
-            }
+              if (name || pic || about || website || ln || relaysDisplay) {
+                  // === 核心修复：同时打包 lud16 和 ln 字段，让 PC 端的 db.py 能够成功读取 ===
+                  await publishEvent(0, JSON.stringify({
+                      name: name,
+                      picture: pic,
+                      about: about,
+                      website: website,
+                      lud16: ln,
+                      ln: ln,
+                      relays: relaysDisplay
+                  }));
+              }
 
-            updateActivity();
-            closeProfileModal();
-            alert("设置已保存！");
+              updateActivity();
+              closeProfileModal();
+              alert("设置已保存！");
         }
 
         // ================= 黑名单管理业务 =================
