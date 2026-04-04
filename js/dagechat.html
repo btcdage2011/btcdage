@@ -1473,11 +1473,11 @@
 
                         const req = ["REQ", "sub-" + Date.now(),
                             { kinds: [0], authors: [pubKeyHex] },
-                            { kinds: [4, 1059], "#p":[pubKeyHex], limit: 100 },
-                            { kinds: [4], authors: [pubKeyHex], limit: 100 }
+                            { kinds: [4, 1059], "#p":[pubKeyHex], limit: 30 },
+                            { kinds: [4], authors: [pubKeyHex], limit: 30 }
                         ];
-                        if (ghostGids.length > 0) req.push({ kinds: [1059], "#p": ghostGids, limit: 100 });
-                        if (normalGids.length > 0) req.push({ kinds: [42, 30078], "#g": normalGids, limit: 100 });
+                        if (ghostGids.length > 0) req.push({ kinds: [1059], "#p": ghostGids, limit: 30 });
+                        if (normalGids.length > 0) req.push({ kinds: [42, 30078], "#g": normalGids, limit: 30 });
 
                         ws.send(JSON.stringify(req));
                         ws.send(JSON.stringify(["REQ", "sync3-" + Date.now(), { kinds:[3], authors: [pubKeyHex], limit: 1 }]));
@@ -1683,6 +1683,26 @@
             }
         }
 
+        // ================= 防抖与批量更新引擎 (性能优化) =================
+        let batchUpdateTimer = null;
+        let batchNeedsScroll = false;
+
+        function triggerBatchUpdate(needScroll = false) {
+            if (needScroll) batchNeedsScroll = true;
+
+            if (batchUpdateTimer) clearTimeout(batchUpdateTimer);
+
+            // 等待 250ms，如果在这期间还有新消息涌入，就继续等待。
+            // 直到洪峰结束，才一次性执行高昂的加密落盘和 UI 重绘。
+            batchUpdateTimer = setTimeout(() => {
+                syncLocalEncryptedCache();
+                renderContacts();
+                if (currentChatPk) renderMessages(batchNeedsScroll);
+
+                batchNeedsScroll = false;
+                batchUpdateTimer = null;
+            }, 250);
+        }
 
         async function publishEvent(kind, content, tags =[]) {
             let event = { kind, created_at: Math.floor(Date.now() / 1000), tags, content, pubkey: pubKeyHex };
@@ -1767,8 +1787,6 @@
                     } catch(e) { console.error("Kind 3 Decrypt Error:", e); }
                 }
 
-                syncLocalEncryptedCache();
-
                 if (newlyAddedGhostGids.length > 0 || newlyAddedNormalGids.length > 0) {
                     let appendReq = ["REQ", "sub-append-groups-" + Date.now()];
                     if (newlyAddedGhostGids.length > 0) appendReq.push({ kinds: [1059], "#p": newlyAddedGhostGids, limit: 100 });
@@ -1782,7 +1800,7 @@
                     broadcastToRelays(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: allPksToFetch }]));
                 }
 
-                renderContacts();
+                triggerBatchUpdate(false);
                 return;
             }
 
@@ -1796,10 +1814,7 @@
                     messages[pk] = messages[pk].filter(m => !hiddenMsgsSet.has(m.id));
                     if (messages[pk].length !== oldLen) isChanged = true;
                 }
-                if (isChanged) {
-                    if (currentChatPk) renderMessages(false);
-                    renderContacts();
-                }
+                if (isChanged) triggerBatchUpdate(false);
                 return;
             }
 
@@ -1887,13 +1902,13 @@
                             unreadCounts[peerPk] = (unreadCounts[peerPk] || 0) + 1;
                         }
 
-                        syncLocalEncryptedCache();
-                        if (currentChatPk === peerPk) renderMessages(isNewRealTimeMsg);
-
                         if (!profiles[senderPk] && senderPk !== pubKeyHex) {
                             broadcastToRelays(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), { kinds: [0], authors: [senderPk] }]));
                         }
-                        renderContacts();
+
+                        // 核心优化：不再逐条同步渲染，丢给批量引擎去处理
+                        let shouldScroll = (currentChatPk === peerPk) && isNewRealTimeMsg;
+                        triggerBatchUpdate(shouldScroll);
                     }
                 }
 
@@ -2580,7 +2595,10 @@
                             list.innerHTML = '';
                             let msgs = messages[currentChatPk] || [];
 
-                            msgs.forEach(m => {
+                            // 核心优化：DOM 截断渲染。只渲染最后 100 条，保持长会话秒开
+                            let displayMsgs = msgs.length > 100 ? msgs.slice(-100) : msgs;
+
+                            displayMsgs.forEach(m => {
                                 // === 新增：渲染时跳过黑名单用户的历史消息 ===
                                 if (blocklist.has(m.sender)) return;
                                 let parsed = parseMessageContent(m.text);
