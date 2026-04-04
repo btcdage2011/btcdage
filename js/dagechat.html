@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.16</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.18</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -262,60 +262,88 @@
     </div>
 
     <!-- ================= 个人资料与设置弹窗 ================= -->
-    <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40 p-4 flex items-center justify-center overflow-y-auto">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm my-auto">
-            <h3 class="text-lg font-bold text-gray-800 mb-5">个人资料与安全设置</h3>
-            <div class="space-y-4">
+    <!-- ================= 个人资料与设置弹窗 ================= -->
+      <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40 p-4 flex items-center justify-center">
+          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+              <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 rounded-t-2xl">
+                  <h3 class="text-lg font-bold text-gray-800">个人资料与设置</h3>
+                  <button onclick="closeProfileModal()" class="text-gray-500 hover:text-gray-800 p-1 transition active:scale-95">
+                      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+              </div>
 
-<!-- 新增：节点管理与增量云端同步入口 -->
-            <div class="flex space-x-3">
-                <button onclick="openRelayManager()" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition flex items-center justify-center border border-gray-200 shadow-sm">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                    多节点网络设置
-                </button>
-                <button onclick="forceIncrementalUploadToCloud(this)" class="flex-1 bg-indigo-50 text-indigo-600 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-100 transition flex items-center justify-center border border-indigo-200 shadow-sm" title="将本地新增数据与云端合并后上传">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    增量云端备份
-                </button>
-            </div>
+              <div class="p-5 flex-1 overflow-y-auto no-scrollbar space-y-4">
+                  <!-- 网络与屏蔽名单 -->
+                  <div class="flex space-x-2">
+                      <button onclick="openRelayManager()" class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition border border-gray-200 flex items-center justify-center">
+                          多节点与网络
+                      </button>
+                      <button onclick="forceIncrementalUploadToCloud(this)" class="flex-1 bg-indigo-50 text-indigo-600 py-2 rounded-lg text-xs font-medium hover:bg-indigo-100 transition border border-indigo-200 flex items-center justify-center">
+                          增量云端备份
+                      </button>
+                      <button onclick="openBlocklistManager()" class="flex-1 bg-red-50 text-red-500 py-2 rounded-lg text-xs font-medium hover:bg-red-100 transition border border-red-100 flex items-center justify-center">
+                          🚫 黑名单
+                      </button>
+                  </div>
 
+                  <div class="flex space-x-3">
+                      <div class="flex-1">
+                          <label class="block text-xs font-medium text-gray-700 mb-1">展示昵称 (Name)</label>
+                          <input type="text" id="edit-name" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                      </div>
+                      <div class="w-24 shrink-0">
+                          <label class="block text-[10px] font-medium text-gray-500 mb-1 leading-tight">锁屏时间<br>(1~600分)</label>
+                          <input type="number" id="edit-locktime" min="1" max="600" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono text-center">
+                      </div>
+                  </div>
 
-                <div class="flex space-x-3">
-                    <div class="flex-1">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">展示昵称</label>
-                        <input type="text" id="edit-name" class="w-full border border-gray-300 rounded-lg p-2.5 text-base md:text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div class="w-24">
-                        <label class="block text-[11px] font-medium text-gray-500 mb-1 leading-tight">自动锁定时间<br>(1~600分钟)</label>
-                        <input type="number" id="edit-locktime" min="1" max="600" class="w-full border border-gray-300 rounded-lg p-2.5 text-base md:text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono text-center">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">头像链接 (URL)</label>
-                    <input type="text" id="edit-avatar" class="w-full border border-gray-300 rounded-lg p-2.5 text-base md:text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">我的公钥 (发给朋友添加你)</label>
-                    <div class="flex">
-                        <input type="text" id="my-npub-display" readonly class="w-full border border-gray-300 rounded-l-lg p-2.5 bg-gray-100 text-gray-500 font-mono text-xs overflow-hidden outline-none">
-                        <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 rounded-r-lg text-sm border border-l-0 border-gray-300 transition font-medium">复制</button>
-                    </div>
-                </div>
-                <div class="mt-4 border-t border-gray-200 pt-4">
-                    <label class="block text-sm font-bold text-red-600 mb-1">私钥备份 (须验证密码)</label>
-                    <div class="flex">
-                        <input type="password" id="my-nsec-display" readonly value="••••••••••••••" class="w-full border border-gray-300 rounded-l-lg p-2.5 bg-red-50 text-red-600 font-mono text-xs overflow-hidden outline-none">
-                        <button onclick="actionWithPasswordVerification('toggleKey')" id="btn-toggle-key" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 text-sm border-t border-b border-gray-300 transition font-medium">显示</button>
-                        <button onclick="actionWithPasswordVerification('copyKey')" class="bg-red-500 hover:bg-red-600 text-white px-3 rounded-r-lg text-sm border border-l-0 border-red-500 transition font-medium whitespace-nowrap">复制</button>
-                    </div>
-                </div>
-            </div>
-            <div class="mt-6 flex justify-end space-x-3">
-                <button onclick="closeProfileModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
-                <button onclick="saveProfile()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">保存设置</button>
-            </div>
-        </div>
-    </div>
+                  <div class="flex space-x-3">
+                      <div class="flex-1">
+                          <label class="block text-xs font-medium text-gray-700 mb-1">闪电网络 (LN/lud16)</label>
+                          <input type="text" id="edit-ln" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="user@getalby.com">
+                      </div>
+                      <div class="flex-1">
+                          <label class="block text-xs font-medium text-gray-700 mb-1">网站 (Website)</label>
+                          <input type="text" id="edit-website" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                      </div>
+                  </div>
+
+                  <div>
+                      <label class="block text-xs font-medium text-gray-700 mb-1">头像链接 (Picture URL)</label>
+                      <input type="text" id="edit-avatar" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                  </div>
+
+                  <div>
+                      <label class="block text-xs font-medium text-gray-700 mb-1">个人简介 (About)</label>
+                      <textarea id="edit-about" rows="2" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="写点什么..."></textarea>
+                  </div>
+
+                  <div>
+                      <label class="block text-xs font-medium text-gray-700 mb-1">公开展示的 Relay 列表 (供他人查阅)</label>
+                      <textarea id="edit-relays-display" rows="2" class="w-full border border-gray-300 rounded-lg p-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="wss://relay.damus.io, wss://..."></textarea>
+                  </div>
+
+                  <div class="border-t border-gray-200 pt-4">
+                      <label class="block text-xs font-medium text-gray-700 mb-1">我的公钥 (发给朋友添加你)</label>
+                      <div class="flex">
+                          <input type="text" id="my-npub-display" readonly class="w-full border border-gray-300 rounded-l-lg p-2 bg-gray-100 text-gray-500 font-mono text-xs overflow-hidden outline-none">
+                          <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 rounded-r-lg text-sm border border-l-0 border-gray-300 transition font-medium">复制</button>
+                      </div>
+                  </div>
+                  <div class="mt-2">
+                      <label class="block text-xs font-bold text-red-600 mb-1">私钥备份 (须验证密码)</label>
+                      <div class="flex">
+                          <input type="password" id="my-nsec-display" readonly value="••••••••••••••" class="w-full border border-gray-300 rounded-l-lg p-2 bg-red-50 text-red-600 font-mono text-xs overflow-hidden outline-none">
+                          <button onclick="actionWithPasswordVerification('toggleKey')" id="btn-toggle-key" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 text-sm border-t border-b border-gray-300 transition font-medium">显示</button>
+                          <button onclick="actionWithPasswordVerification('copyKey')" class="bg-red-500 hover:bg-red-600 text-white px-3 rounded-r-lg text-sm border border-l-0 border-red-500 transition font-medium whitespace-nowrap">复制</button>
+                      </div>
+                  </div>
+              </div>
+              <div class="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end shrink-0">
+                  <button onclick="saveProfile()" class="w-full py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">保存设置</button>
+              </div>
+          </div>
+      </div>
 
     <!-- ================= 设置密码 弹窗 ================= -->
     <div id="pwd-setup-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[70] flex items-center justify-center p-4">
@@ -372,7 +400,23 @@
             </div>
         </div>
     </div>
-
+    <!-- ================= 黑名单管理弹窗 ================= -->
+        <div id="blocklist-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[90] flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col max-h-[80vh] overflow-hidden">
+                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                    <h3 class="text-md font-bold text-gray-800">🚫 屏蔽名单管理</h3>
+                    <button onclick="closeBlocklistManager()" class="text-gray-500 hover:text-gray-800 p-1 transition active:scale-95">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-3 border-b border-gray-100 bg-white text-xs text-gray-500 shrink-0">
+                    被屏蔽的用户将无法向您发送私聊，且在群聊中会自动隐藏其发言。
+                </div>
+                <div id="blocklist-container" class="flex-1 overflow-y-auto bg-white p-2 no-scrollbar space-y-1">
+                    <!-- 黑名单列表动态渲染 -->
+                </div>
+            </div>
+        </div>
     <!-- ================= 图片查看器 弹窗 ================= -->
         <div id="image-viewer-modal" class="fixed inset-0 bg-black bg-opacity-90 hidden z-[120] flex flex-col items-center justify-center overflow-hidden">
             <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-white bg-gray-800 hover:bg-gray-700 rounded-full p-2 transition z-50 shadow-lg">
@@ -498,7 +542,7 @@
         let myGhostNonces = new Set(); // 用于识别我在幽灵群里的发言
         // 协议切换开关 (全局)
         let useNip59 = true;
-
+        let blocklist = new Set(); // 本地黑名单
         let replyTargetId = null; // 全局记录当前正在回复的消息ID
 
         // 向池中所有活跃的 Relay 并发广播
@@ -781,7 +825,13 @@
                  return { pubkey: pk, name: name };
              });
 
-             let payload = JSON.stringify({ groups: groupsList, contacts: contactsList, ts: Math.floor(Date.now()/1000) });
+             // 加入 blocklist 进行加密云端漫游
+            let payload = JSON.stringify({
+                groups: groupsList,
+                contacts: contactsList,
+                blocklist: Array.from(blocklist), // <--- 新增这行
+                ts: Math.floor(Date.now()/1000)
+            });
              // 使用 Python 兼容的 NIP-44 加密打包
              let cipher = await pythonNip44Encrypt(privKeyHex, pubKeyHex, payload);
 
@@ -1339,6 +1389,9 @@
             messages = await loadEncryptedData('msg_cache', {});
             unreadCounts = await loadEncryptedData('unread_counts', {});
             groups = await loadEncryptedData('groups_cache', {}); // 载入群组
+            // === 新增：读取黑名单 ===
+            let savedBlocklist = localStorage.getItem(`dage_blocklist_${pubKeyHex}`);
+            blocklist = savedBlocklist ? new Set(JSON.parse(savedBlocklist)) : new Set();
 
             renderContacts();
             initRelayConnection();
@@ -1607,7 +1660,8 @@
             // 🌟 核心防洪与去重：多 Relay 会收到重复事件，必须拦截
             if (seenEventIds.has(ev.id)) return;
             seenEventIds.add(ev.id);
-
+            // === 新增：如果在黑名单中，直接丢弃其产生的任何外层事件 ===
+            if (blocklist.has(ev.pubkey)) return;
             if (ev.kind === 0) {
                 try {
                     profiles[ev.pubkey] = JSON.parse(ev.content);
@@ -1650,6 +1704,15 @@
                                     if (c.name && !profiles[c.pubkey]) profiles[c.pubkey] = { name: c.name };
                                 });
                             }
+                            // === 新增：解析并合并云端漫游的黑名单 ===
+                                                        if (data.blocklist && Array.isArray(data.blocklist)) {
+                                                            let oldSize = blocklist.size;
+                                                            data.blocklist.forEach(pk => blocklist.add(pk));
+                                                            // 如果云端带来了新的黑名单成员，落盘保存
+                                                            if (blocklist.size !== oldSize) {
+                                                                localStorage.setItem(`dage_blocklist_${pubKeyHex}`, JSON.stringify(Array.from(blocklist)));
+                                                            }
+                                                        }
                         }
                     } catch(e) { console.error("Kind 3 Decrypt Error:", e); }
                 }
@@ -1716,6 +1779,8 @@
                 let unwrapped = await unwrapGift(decryptKey, ev);
                 if (unwrapped) {
                     let senderPk = unwrapped.senderPubkey;
+                    // === 新增：解包后发现是黑名单成员发来的，直接丢弃 ===
+                    if (blocklist.has(senderPk)) return;
                     let rumor = unwrapped.rumor;
                     if (hiddenMsgsSet.has(rumor.id)) return;
 
@@ -2468,6 +2533,8 @@
                             let msgs = messages[currentChatPk] || [];
 
                             msgs.forEach(m => {
+                                // === 新增：渲染时跳过黑名单用户的历史消息 ===
+                                if (blocklist.has(m.sender)) return;
                                 let parsed = parseMessageContent(m.text);
                                 let isMe = m.sender === pubKeyHex || (parsed && parsed.nonce && myGhostNonces.has(parsed.nonce));
                                 let isSelected = selectedMsgIds.has(m.id);
@@ -2731,16 +2798,34 @@
                 badge.classList.replace('bg-gray-100', 'bg-blue-100');
                 badge.classList.replace('text-gray-500', 'text-blue-600');
                 actionArea.innerHTML = `<div class="text-center text-gray-400 text-sm py-3 font-medium">这是您自己的账户，可作为文件传输助手或备忘录使用。</div>`;
-            } else if(isStranger) {
-                badge.classList.remove('hidden');
-                badge.innerText = '陌生人';
-                badge.classList.replace('bg-blue-100', 'bg-gray-100');
-                badge.classList.replace('text-blue-600', 'text-gray-500');
-                actionArea.innerHTML = `<button onclick="addContactFromModal('${currentChatPk}')" class="w-full bg-green-500 text-white py-3.5 rounded-xl hover:bg-green-600 transition shadow font-medium active:scale-95 text-sm flex items-center justify-center"><svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> 添加为好友</button>`;
-            } else {
-                badge.classList.add('hidden');
-                actionArea.innerHTML = `<button onclick="removeContactFromModal('${currentChatPk}')" class="w-full bg-red-50 text-red-500 py-3.5 rounded-xl hover:bg-red-100 transition shadow-sm font-medium border border-red-100 active:scale-95 text-sm flex items-center justify-center"><svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> 彻底删除好友</button>`;
-            }
+              } else if(isStranger) {
+                              badge.classList.remove('hidden');
+                              badge.innerText = '陌生人';
+                              badge.classList.replace('bg-blue-100', 'bg-gray-100');
+                              badge.classList.replace('text-blue-600', 'text-gray-500');
+
+                              let isBlocked = blocklist.has(currentChatPk);
+                              let blockBtn = isBlocked
+                                  ? `<button onclick="toggleBlockUser('${currentChatPk}', false)" class="w-full mt-3 bg-gray-50 text-green-600 py-2.5 rounded-xl hover:bg-green-100 transition border border-gray-200 active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
+                                  : `<button onclick="toggleBlockUser('${currentChatPk}', true)" class="w-full mt-3 bg-gray-50 text-gray-500 py-2.5 rounded-xl hover:bg-gray-100 transition border border-gray-200 active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
+
+                              actionArea.innerHTML = `
+                                  <button onclick="addContactFromModal('${currentChatPk}')" class="w-full bg-green-500 text-white py-3.5 rounded-xl hover:bg-green-600 transition shadow font-medium active:scale-95 text-sm flex items-center justify-center">添加为好友</button>
+                                  ${blockBtn}
+                              `;
+                          } else {
+                              badge.classList.add('hidden');
+
+                              let isBlocked = blocklist.has(currentChatPk);
+                              let blockBtn = isBlocked
+                                  ? `<button onclick="toggleBlockUser('${currentChatPk}', false)" class="w-full mt-3 bg-gray-50 text-green-600 py-2.5 rounded-xl hover:bg-green-100 transition border border-gray-200 active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
+                                  : `<button onclick="toggleBlockUser('${currentChatPk}', true)" class="w-full mt-3 bg-gray-50 text-gray-500 py-2.5 rounded-xl hover:bg-gray-100 transition border border-gray-200 active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
+
+                              actionArea.innerHTML = `
+                                  <button onclick="removeContactFromModal('${currentChatPk}')" class="w-full bg-red-50 text-red-500 py-3.5 rounded-xl hover:bg-red-100 transition shadow-sm font-medium border border-red-100 active:scale-95 text-sm flex items-center justify-center">彻底删除好友</button>
+                                  ${blockBtn}
+                              `;
+                          }
 
             document.getElementById('peer-profile-modal').classList.remove('hidden');
             setTimeout(() => document.getElementById('peer-profile-content').classList.remove('scale-95'), 10);
@@ -2783,18 +2868,23 @@
             closePeerProfileModal();
         }
 
-        // ================= 个人资料与设置 =================
+        // ================= 个人资料业务 (支持全字段) =================
         function showProfileModal() {
             document.getElementById('profile-modal').classList.remove('hidden');
             let p = profiles[pubKeyHex] || {};
+
             document.getElementById('edit-name').value = p.name || '';
             document.getElementById('edit-avatar').value = p.picture || '';
+            document.getElementById('edit-about').value = p.about || '';
+            document.getElementById('edit-website').value = p.website || '';
+            document.getElementById('edit-ln').value = p.lud16 || p.ln || '';
+            document.getElementById('edit-relays-display').value = p.relays || '';
+
             document.getElementById('edit-locktime').value = lockTimeMins;
 
             let skInput = document.getElementById('my-nsec-display');
             skInput.value = "••••••••••••••"; skInput.type = 'password';
             document.getElementById('btn-toggle-key').innerText = '显示';
-
         }
 
         function closeProfileModal() {
@@ -2805,7 +2895,6 @@
         }
 
         async function saveProfile() {
-
             let timeVal = parseInt(document.getElementById('edit-locktime').value);
             if(isNaN(timeVal) || timeVal < 1) timeVal = 1;
             if(timeVal > 600) timeVal = 600;
@@ -2814,16 +2903,21 @@
 
             let name = document.getElementById('edit-name').value.trim();
             let pic = document.getElementById('edit-avatar').value.trim();
+            let about = document.getElementById('edit-about').value.trim();
+            let website = document.getElementById('edit-website').value.trim();
+            let ln = document.getElementById('edit-ln').value.trim();
+            let relaysDisplay = document.getElementById('edit-relays-display').value.trim();
 
             if (!profiles[pubKeyHex]) profiles[pubKeyHex] = {};
-            if (name) {
-                profiles[pubKeyHex].name = name;
-                document.getElementById('my-name').innerText = name;
-            }
-            if (pic) {
-                profiles[pubKeyHex].picture = pic;
-                document.getElementById('my-avatar').innerHTML = `<img src="${pic}" class="w-full h-full object-cover">`;
-            }
+            profiles[pubKeyHex].name = name;
+            profiles[pubKeyHex].picture = pic;
+            profiles[pubKeyHex].about = about;
+            profiles[pubKeyHex].website = website;
+            profiles[pubKeyHex].lud16 = ln;
+            profiles[pubKeyHex].relays = relaysDisplay;
+
+            if (name) document.getElementById('my-name').innerText = name;
+            if (pic) document.getElementById('my-avatar').innerHTML = `<img src="${pic}" class="w-full h-full object-cover">`;
 
             let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
             if(accIdx > -1) {
@@ -2832,13 +2926,78 @@
                 localStorage.setItem('dage_accounts', JSON.stringify(accounts));
             }
 
-            if (name || pic) await publishEvent(0, JSON.stringify({ name, picture: pic }));
+            if (name || pic || about || website || ln || relaysDisplay) {
+                await publishEvent(0, JSON.stringify({
+                    name, picture: pic, about, website, lud16: ln, relays: relaysDisplay
+                }));
+            }
+
             updateActivity();
             closeProfileModal();
             alert("设置已保存！");
         }
 
+        // ================= 黑名单管理业务 =================
+        function openBlocklistManager() {
+            document.getElementById('blocklist-modal').classList.remove('hidden');
+            renderBlocklist();
+        }
 
+        function closeBlocklistManager() {
+            document.getElementById('blocklist-modal').classList.add('hidden');
+        }
+
+        function renderBlocklist() {
+            let container = document.getElementById('blocklist-container');
+            container.innerHTML = '';
+            if (blocklist.size === 0) {
+                container.innerHTML = '<div class="p-5 text-center text-sm text-gray-400 mt-4">您的屏蔽名单为空</div>';
+                return;
+            }
+
+            blocklist.forEach(pk => {
+                let p = profiles[pk] || { name: nt.nip19.npubEncode(pk).substring(0,10)+'...' };
+                let div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 border-b border-gray-100 hover:bg-gray-50 rounded-lg";
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3 min-w-0">
+                        <div class="w-10 h-10 bg-red-100 text-red-500 rounded-full flex items-center justify-center font-bold shrink-0">
+                            ${p.picture ? `<img src="${formatAvatarUrl(p.picture)}" class="w-full h-full rounded-full object-cover opacity-50">` : '🚫'}
+                        </div>
+                        <div class="truncate text-sm font-medium text-gray-800">${escapeHTML(p.name)}</div>
+                    </div>
+                    <button onclick="toggleBlockUser('${pk}', false); renderBlocklist();" class="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-green-100 hover:text-green-600 transition shrink-0 shadow-sm border border-gray-200 font-bold active:scale-95">解除屏蔽</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function toggleBlockUser(pk, isBlock) {
+            if (isBlock) {
+                if(!confirm("确定要屏蔽此人吗？\n屏蔽后您将不再收到对方的私聊，群聊中也会自动隐藏对方的发言。")) return;
+                blocklist.add(pk);
+            } else {
+                blocklist.delete(pk);
+            }
+
+            // 保存到本地
+            localStorage.setItem(`dage_blocklist_${pubKeyHex}`, JSON.stringify(Array.from(blocklist)));
+
+            // === 新增：触发云端漫游同步 ===
+            // 我们用异步不阻塞 UI，让它在后台默默更新云端
+            syncBackupToCloud().catch(e => console.error("黑名单同步云端失败", e));
+
+            // 刷新相关 UI
+            renderContacts();
+            if (currentChatPk) renderMessages(false);
+
+            // 如果对方资料卡开着，自动刷新一下按钮状态
+            if (!document.getElementById('peer-profile-modal').classList.contains('hidden')) {
+                showPeerProfileModal();
+            }
+
+            if(isBlock) alert("🚫 已屏蔽该用户，并同步至云端");
+        }
 
         function openCreateGroupModal() {
                     document.getElementById('new-group-name').value = '';
