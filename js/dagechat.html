@@ -125,7 +125,7 @@
                 </div>
                 <div class="flex items-center space-x-2 md:space-x-4 shrink-0">
                     <!-- 新增：协议切换开关 (NIP-59 / NIP-04) -->
-                    <div class="flex items-center space-x-1.5 md:space-x-2 bg-gray-50 px-2 py-1.5 rounded-lg border border-gray-200" title="开启使用 NIP-59(双重加密)，关闭使用 NIP-04(基础私聊)">
+                    <div id="protocol-switch-container" class="flex items-center space-x-1.5 md:space-x-2 bg-gray-50 px-2 py-1.5 rounded-lg border border-gray-200" title="开启使用 NIP-59(双重加密)，关闭使用 NIP-04(基础私聊)">
                         <span id="protocol-icon" class="text-xs md:text-sm drop-shadow-sm">🎁</span>
                         <label class="relative inline-flex items-center cursor-pointer mt-0.5">
                             <input type="checkbox" id="protocol-switch" class="sr-only peer" checked onchange="toggleProtocol()">
@@ -320,11 +320,11 @@
         </div>
     </div>
     <!-- ================= 图片查看器 弹窗 ================= -->
-        <div id="image-viewer-modal" class="fixed inset-0 bg-black bg-opacity-90 hidden z-[120] flex flex-col items-center justify-center p-2 transition-opacity" onclick="closeImageViewer()">
-            <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-white bg-gray-800 hover:bg-gray-700 rounded-full p-2 transition z-10">
+    <div id="image-viewer-modal" class="fixed inset-0 bg-black bg-opacity-90 hidden z-[120] flex flex-col items-center justify-center overflow-hidden">
+            <button onclick="closeImageViewer()" class="absolute top-4 right-4 text-white bg-gray-800 hover:bg-gray-700 rounded-full p-2 transition z-50">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
-            <img id="viewer-img" class="max-w-full max-h-full object-contain cursor-zoom-out select-none" src="">
+            <img id="viewer-img" class="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing select-none relative" src="" style="transform-origin: center center;">
         </div>
 
         <!-- ================= 创建群组 弹窗 ================= -->
@@ -398,7 +398,7 @@
         let accountToLogin = null; // 临时保存待登录的公钥
 
         let pendingImageB64 = null; // 临时保存待发送的Base64图片
-
+        let myGhostNonces = new Set(); // 用于识别我在幽灵群里的发言
         // 协议切换开关 (全局)
         let useNip59 = true;
 
@@ -456,15 +456,107 @@
                     return 'data:image/jpeg;base64,' + pic;
                 }
 
-                // 全屏图片查看器
-                function openImageViewer(src) {
-                    document.getElementById('viewer-img').src = src;
-                    document.getElementById('image-viewer-modal').classList.remove('hidden');
-                }
-                function closeImageViewer() {
-                    document.getElementById('image-viewer-modal').classList.add('hidden');
-                    document.getElementById('viewer-img').src = '';
-                }
+                // ================= 图片查看器 (支持手势缩放/拖动) =================
+                        let imgScale = 1, imgPanX = 0, imgPanY = 0;
+                        let isDraggingImg = false, startDragX = 0, startDragY = 0;
+                        let initialPinchDist = null, initialScale = 1;
+
+                        function openImageViewer(src) {
+                            let img = document.getElementById('viewer-img');
+                            img.src = src;
+                            imgScale = 1; imgPanX = 0; imgPanY = 0;
+                            img.style.transform = `translate(0px, 0px) scale(1)`;
+                            document.getElementById('image-viewer-modal').classList.remove('hidden');
+                        }
+
+                        function closeImageViewer() {
+                            document.getElementById('image-viewer-modal').classList.add('hidden');
+                            document.getElementById('viewer-img').src = '';
+                        }
+
+                        function initImageViewerTouch() {
+                            const modal = document.getElementById('image-viewer-modal');
+                            const img = document.getElementById('viewer-img');
+
+                            const updateTransform = () => { img.style.transform = `translate(${imgPanX}px, ${imgPanY}px) scale(${imgScale})`; };
+
+                            // 电脑滚轮缩放
+                            modal.addEventListener('wheel', (e) => {
+                                e.preventDefault();
+                                imgScale += e.deltaY < 0 ? 0.1 : -0.1;
+                                imgScale = Math.max(0.5, Math.min(imgScale, 5));
+                                updateTransform();
+                            }, { passive: false });
+
+                            // 手机触摸事件
+                            modal.addEventListener('touchstart', (e) => {
+                                if (e.touches.length === 1) {
+                                    isDraggingImg = true;
+                                    startDragX = e.touches[0].clientX - imgPanX;
+                                    startDragY = e.touches[0].clientY - imgPanY;
+                                } else if (e.touches.length === 2) {
+                                    isDraggingImg = false;
+                                    initialPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                                    initialScale = imgScale;
+                                }
+                            });
+
+                            modal.addEventListener('touchmove', (e) => {
+                                e.preventDefault(); // 阻止背景滚动
+                                if (e.touches.length === 1 && isDraggingImg) {
+                                    imgPanX = e.touches[0].clientX - startDragX;
+                                    imgPanY = e.touches[0].clientY - startDragY;
+                                    updateTransform();
+                                } else if (e.touches.length === 2 && initialPinchDist) {
+                                    let dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                                    imgScale = Math.max(0.5, Math.min(initialScale * (dist / initialPinchDist), 5));
+                                    updateTransform();
+                                }
+                            }, { passive: false });
+
+                            modal.addEventListener('touchend', (e) => {
+                                if (e.touches.length < 2) initialPinchDist = null;
+                                if (e.touches.length === 0) isDraggingImg = false;
+                            });
+
+                            // 电脑鼠标拖拽
+                            modal.addEventListener('mousedown', (e) => {
+                                if (e.target !== img) return;
+                                isDraggingImg = true; startDragX = e.clientX - imgPanX; startDragY = e.clientY - imgPanY;
+                            });
+                            modal.addEventListener('mousemove', (e) => {
+                                if (isDraggingImg) { imgPanX = e.clientX - startDragX; imgPanY = e.clientY - startDragY; updateTransform(); }
+                            });
+                            modal.addEventListener('mouseup', () => isDraggingImg = false);
+                            modal.addEventListener('mouseleave', () => isDraggingImg = false);
+                        }
+
+                        // 注册到初始化
+                        window.addEventListener('DOMContentLoaded', initImageViewerTouch);
+
+                        // ================= PoW 挖矿器 (普通群发信必须) =================
+                        function minePowAndSign(privHex, kind, content, tags, difficulty) {
+                            let pubKey = nt.getPublicKey(privHex);
+                            let createdAt = Math.floor(Date.now() / 1000);
+                            let target = BigInt("1") << BigInt(256 - difficulty);
+                            let nonce = 0;
+
+                            let currentTags = tags.filter(t => t[0] !== 'nonce');
+                            currentTags.push(["nonce", nonce.toString(), difficulty.toString()]);
+
+                            while (true) {
+                                currentTags[currentTags.length - 1][1] = nonce.toString();
+                                let event = { pubkey: pubKey, created_at: createdAt, kind: kind, tags: currentTags, content: content };
+                                let idHex = nt.getEventHash(event);
+
+                                if (BigInt("0x" + idHex) < target) {
+                                    event.id = idHex;
+                                    event.sig = nt.getSignature(event, privHex);
+                                    return event;
+                                }
+                                nonce++;
+                            }
+                        }
 
 
         function maskRelayUrl(url) {
@@ -1143,6 +1235,7 @@
                         return;
                     }
 
+                    // 接收：私聊 NIP-04
                     if (ev.kind === 4) {
                         if (hiddenMsgsSet.has(ev.id)) return;
                         try {
@@ -1153,26 +1246,64 @@
                         } catch (e) {}
                     }
 
+                    // 接收：私聊与幽灵群 NIP-59
                     if (ev.kind === 1059) {
                         if (hiddenMsgsSet.has(ev.id)) return;
-                        let unwrapped = await unwrapGift(privKeyHex, ev);
+
+                        let pTag = ev.tags.find(t => t[0] === 'p');
+                        let recipientPk = pTag ? pTag[1] : null;
+
+                        let decryptKey = privKeyHex;
+                        let isGhostGroup = false;
+
+                        // 如果包裹的目标是幽灵群，必须用群私钥解密
+                        if (recipientPk && groups[recipientPk] && groups[recipientPk].type === 1) {
+                            decryptKey = groups[recipientPk].key_hex;
+                            isGhostGroup = true;
+                        }
+
+                        let unwrapped = await unwrapGift(decryptKey, ev);
                         if (unwrapped) {
                             let senderPk = unwrapped.senderPubkey;
                             let rumor = unwrapped.rumor;
                             if (hiddenMsgsSet.has(rumor.id)) return;
 
                             let peerPk = senderPk;
-                            // 修复多端漫游：如果是自己抄送给自己的 NIP-59 消息
-                            if (senderPk === pubKeyHex) {
-                                let pTag = rumor.tags.find(t => t[0] === 'p');
-                                if (pTag && pTag[1]) {
-                                    peerPk = pTag[1];
-                                }
+                            if (isGhostGroup) {
+                                peerPk = recipientPk; // 归档到群会话下
+                            } else if (senderPk === pubKeyHex) {
+                                // 自己发给自己的漫游同步
+                                let rTag = rumor.tags.find(t => t[0] === 'p');
+                                if (rTag && rTag[1]) peerPk = rTag[1];
                             }
                             _processDecryptedMessage(peerPk, rumor.id, senderPk, rumor.content, rumor.created_at, 59);
                         }
                     }
+
+                    // 接收：普通群聊 Kind 42
+                    if (ev.kind === 42) {
+                        if (hiddenMsgsSet.has(ev.id)) return;
+                        let gTag = ev.tags.find(t => t[0] === 'g');
+                        if (!gTag) return;
+                        let gid = gTag[1];
+                        if (!groups[gid] || groups[gid].type !== 0) return;
+
+                        try {
+                            let grp = groups[gid];
+                            let keyBytes = new Uint8Array(grp.key_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                            let raw = base64ToBytes(ev.content);
+                            if (raw.length < 41 || raw[0] !== 2) return;
+
+                            let nonce = raw.subarray(1, 25);
+                            let ciphertext = raw.subarray(25);
+                            let plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, ciphertext, null, nonce, keyBytes);
+                            let decryptedText = new TextDecoder().decode(plaintextBytes);
+
+                            _processDecryptedMessage(gid, ev.id, ev.pubkey, decryptedText, ev.created_at, 0);
+                        } catch(e) {}
+                    }
                 }
+
 
         function _processDecryptedMessage(peerPk, msgId, senderPk, decryptedText, timestamp, encType) {
             if (!messages[peerPk]) messages[peerPk] = [];
@@ -1428,127 +1559,194 @@
         }
 
         function updateChatHeader() {
-            if(!currentChatPk) return;
-            let isGroup = !!groups[currentChatPk];
-            let prof = isGroup ? groups[currentChatPk] : (profiles[currentChatPk] || { name: nt.nip19.npubEncode(currentChatPk).substring(0,10)+'...' });
+                    if(!currentChatPk) return;
+                    let isGroup = !!groups[currentChatPk];
+                    let prof = isGroup ? groups[currentChatPk] : (profiles[currentChatPk] || { name: nt.nip19.npubEncode(currentChatPk).substring(0,10)+'...' });
 
-            let displayName = prof.name;
-            if (currentChatPk === pubKeyHex) {
-                displayName = `${prof.name || '我'} (备忘录 💾)`;
-            } else if (isGroup) {
-                displayName = prof.type === 1 ? `[共享群] ${prof.name}` : `[普通群] ${prof.name}`;
-            }
+                    let displayName = currentChatPk === pubKeyHex ? `${prof.name || '我'} (备忘录 💾)` : prof.name;
+                    document.getElementById('chat-name').innerText = displayName;
 
-            document.getElementById('chat-name').innerText = displayName;
-            let picUrl = isGroup ? '' : formatAvatarUrl(prof.picture);
-            let avatarBox = document.getElementById('chat-avatar');
+                    // 群聊时隐藏协议开关，私聊时显示
+                    const switchContainer = document.getElementById('protocol-switch-container');
+                    if (switchContainer) {
+                        if (isGroup) switchContainer.classList.add('hidden');
+                        else switchContainer.classList.remove('hidden');
+                    }
 
-            if (isGroup) {
-                let badgeIcon = prof.type === 1 ? '⚡' : '📢';
-                let bgColor = prof.type === 1 ? 'bg-purple-500' : 'bg-green-500';
-                avatarBox.innerHTML = `<div class="w-full h-full ${bgColor} rounded-full flex items-center justify-center text-white text-xl font-bold">${badgeIcon}</div>`;
-                avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
-            } else if(picUrl) {
-                avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
-                avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
-            } else {
-                avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
-                avatarBox.classList.replace('bg-transparent', 'bg-gray-400');
-            }
-        }
+                    let picUrl = isGroup ? '' : formatAvatarUrl(prof.picture);
+                    let avatarBox = document.getElementById('chat-avatar');
 
-        function renderMessages(autoScroll = false) {
-            const list = document.getElementById('message-list');
-            let prevScrollTop = list.scrollTop;
-
-            list.innerHTML = '';
-            let msgs = messages[currentChatPk] ||[];
-
-            msgs.forEach(m => {
-                let isMe = m.sender === pubKeyHex;
-                let isSelected = selectedMsgIds.has(m.id);
-                let encIcon = m.enc_type === 59 ? '🎁' : '🔒';
-                let timeStr = new Date(m.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ' ' + encIcon;
-
-                let wrapper = document.createElement('div');
-                wrapper.className = `flex w-full items-end ${isSelectMode ? 'cursor-pointer hover:bg-gray-100 p-1 rounded-lg transition-colors' : ''}`;
-                if (isSelectMode) wrapper.onclick = () => handleMsgClick(m.id);
-
-                let selectHtml = isSelectMode ? `<div class="w-8 shrink-0 mr-1 flex items-center justify-center"><div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}">${isSelected ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}</div></div>` : '';
-
-                let parsed = parseMessageContent(m.text);
-                let contentHtml = linkifyAndRenderMedia(parsed.text || "", isMe);
-
-                // 替换掉原先的 window.open，接入我们的 Lightbox 原生图片查看器
-                if (parsed.imageB64) {
-                    let imgBorder = isMe ? 'border-blue-400' : 'border-gray-200';
-                    let imgSrc = `data:image/jpeg;base64,${parsed.imageB64}`;
-                    let imgHtml = `<img src="${imgSrc}" class="max-w-full max-h-48 rounded-lg object-contain shadow-sm border ${imgBorder} cursor-zoom-in" onclick="openImageViewer('${imgSrc}')" onload="if(this.parentNode.parentNode.parentNode.parentNode === document.getElementById('message-list')) document.getElementById('message-list').scrollTop = document.getElementById('message-list').scrollHeight">`;
-                    contentHtml += contentHtml ? `<div class="mt-2 mb-1">${imgHtml}</div>` : `<div class="mb-1">${imgHtml}</div>`;
-                }
-
-                let bubbleHtml = `
-                    <div class="flex flex-1 ${isMe ? 'justify-end' : 'justify-start'} no-select"
-                         ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})"
-                         ontouchend="handleTouchEnd()" ontouchmove="handleTouchMove()" ontouchcancel="handleTouchMove()"
-                         oncontextmenu="handleRightClick(event, '${m.id}', ${isMe})">
-                        <div class="max-w-[75%] md:max-w-md rounded-2xl p-3 shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100'}">
-                            <div class="text-[15px] whitespace-pre-wrap break-words leading-relaxed">${contentHtml}</div>
-                            <div class="text-[11px] text-right mt-1.5 ${isMe ? 'text-blue-200' : 'text-gray-400'}">${timeStr}</div>
-                        </div>
-                    </div>
-                `;
-                wrapper.innerHTML = selectHtml + bubbleHtml;
-                list.appendChild(wrapper);
-            });
-
-            if (autoScroll) list.scrollTop = list.scrollHeight;
-            else list.scrollTop = prevScrollTop;
-        }
-
-        async function sendMessage() {
-            let input = document.getElementById('msg-input');
-            let text = input.value.trim();
-
-            if (!text && !pendingImageB64) return;
-            if (!currentChatPk) return;
-
-            let payload = text;
-            if (pendingImageB64) {
-                payload = JSON.stringify({ text: text, image: pendingImageB64 });
-            }
-
-            input.value = ''; input.style.height = '';
-            clearPendingImage();
-
-            if (useNip59) {
-                // 1. 发给对方的包裹 (把接收者 p tag 写入 rumor 方便多端识别)
-                let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payload, 14, [["p", currentChatPk]]);
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify(["EVENT", wrapEvent]));
-                }
-
-                // 2. 抄送给自己的包裹 (实现多端漫游同步)
-                if (currentChatPk !== pubKeyHex) {
-                    let selfWrap = await makeGiftWrap(privKeyHex, pubKeyHex, payload, 14, [["p", currentChatPk]]);
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify(["EVENT", selfWrap.wrapEvent]));
+                    if (isGroup) {
+                        let badgeIcon = prof.type === 1 ? '⚡' : '📢';
+                        let bgColor = prof.type === 1 ? 'bg-purple-500' : 'bg-green-500';
+                        avatarBox.innerHTML = `<div class="w-full h-full ${bgColor} rounded-full flex items-center justify-center text-white text-xl font-bold">${badgeIcon}</div>`;
+                        avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
+                    } else if(picUrl) {
+                        avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                        avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
+                    } else {
+                        avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
+                        avatarBox.classList.replace('bg-transparent', 'bg-gray-400');
                     }
                 }
 
-                if (!messages[currentChatPk]) messages[currentChatPk] = [];
-                messages[currentChatPk].push({ id: rumorId, sender: pubKeyHex, text: payload, time: rumorEvent.created_at, enc_type: 59 });
-            } else {
-                let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payload);
-                let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
-                if (!messages[currentChatPk]) messages[currentChatPk] =[];
-                messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payload, time: event.created_at, enc_type: 4 });
-            }
+        function renderMessages(autoScroll = false) {
+                    const list = document.getElementById('message-list');
+                    let prevScrollTop = list.scrollTop;
 
-            syncLocalEncryptedCache();
-            renderMessages(true); renderContacts();
-            updateActivity();
-        }
+                    list.innerHTML = '';
+                    let msgs = messages[currentChatPk] ||[];
+
+                    msgs.forEach(m => {
+                        let parsed = parseMessageContent(m.text);
+
+                        // 核心修复：如果是幽灵群，必须靠记录的 nonce 才能知道是不是自己发的
+                        let isMe = m.sender === pubKeyHex || (parsed && parsed.nonce && myGhostNonces.has(parsed.nonce));
+                        let isSelected = selectedMsgIds.has(m.id);
+
+                        let encIcon = m.enc_type === 59 ? '🎁' : (m.enc_type === 0 ? '📢' : '🔒');
+                        let timeStr = new Date(m.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ' ' + encIcon;
+
+                        let wrapper = document.createElement('div');
+                        wrapper.className = `flex w-full items-end ${isSelectMode ? 'cursor-pointer hover:bg-gray-100 p-1 rounded-lg transition-colors' : ''}`;
+                        if (isSelectMode) wrapper.onclick = () => handleMsgClick(m.id);
+
+                        let selectHtml = isSelectMode ? `<div class="w-8 shrink-0 mr-1 flex items-center justify-center"><div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}">${isSelected ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}</div></div>` : '';
+
+                        let contentHtml = linkifyAndRenderMedia(parsed.text || "", isMe);
+
+                        if (parsed.imageB64) {
+                            let imgBorder = isMe ? 'border-blue-400' : 'border-gray-200';
+                            let imgSrc = `data:image/jpeg;base64,${parsed.imageB64}`;
+                            let imgHtml = `<img src="${imgSrc}" class="max-w-full max-h-48 rounded-lg object-contain shadow-sm border ${imgBorder} cursor-zoom-in" onclick="openImageViewer('${imgSrc}')" onload="if(this.parentNode.parentNode.parentNode.parentNode === document.getElementById('message-list')) document.getElementById('message-list').scrollTop = document.getElementById('message-list').scrollHeight">`;
+                            contentHtml += contentHtml ? `<div class="mt-2 mb-1">${imgHtml}</div>` : `<div class="mb-1">${imgHtml}</div>`;
+                        }
+
+                        // 渲染发件人名字 (如果是群聊的话)
+                        let senderNameHtml = '';
+                        if (groups[currentChatPk] && !isMe) {
+                            let sName = "未知";
+                            if (groups[currentChatPk].type === 1 && parsed && parsed.alias) {
+                                sName = parsed.alias + " 🎭";
+                            } else if (profiles[m.sender]) {
+                                sName = profiles[m.sender].name || m.sender.substring(0,6);
+                            } else {
+                                sName = "用户 " + m.sender.substring(0,6);
+                            }
+                            senderNameHtml = `<div class="text-[11px] text-gray-500 mb-1 ml-1">${escapeHTML(sName)}</div>`;
+                        }
+
+                        let bubbleHtml = `
+                            <div class="flex flex-col flex-1 ${isMe ? 'items-end' : 'items-start'} no-select"
+                                 ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})"
+                                 ontouchend="handleTouchEnd()" ontouchmove="handleTouchMove()" ontouchcancel="handleTouchMove()"
+                                 oncontextmenu="handleRightClick(event, '${m.id}', ${isMe})">
+                                ${senderNameHtml}
+                                <div class="max-w-[75%] md:max-w-md rounded-2xl p-3 shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100'}">
+                                    <div class="text-[15px] whitespace-pre-wrap break-words leading-relaxed">${contentHtml}</div>
+                                    <div class="text-[11px] text-right mt-1.5 ${isMe ? 'text-blue-200' : 'text-gray-400'}">${timeStr}</div>
+                                </div>
+                            </div>
+                        `;
+                        wrapper.innerHTML = selectHtml + bubbleHtml;
+                        list.appendChild(wrapper);
+                    });
+
+                    if (autoScroll) list.scrollTop = list.scrollHeight;
+                    else list.scrollTop = prevScrollTop;
+                }
+
+                async function sendMessage() {
+                    let input = document.getElementById('msg-input');
+                    let text = input.value.trim();
+
+                    if (!text && !pendingImageB64) return;
+                    if (!currentChatPk) return;
+
+                    let payloadObj = { text: text };
+                    if (pendingImageB64) {
+                        payloadObj.image = pendingImageB64;
+                    }
+
+                    input.value = ''; input.style.height = '';
+                    clearPendingImage();
+
+                    let isGroup = !!groups[currentChatPk];
+                    let nowTs = Math.floor(Date.now() / 1000);
+
+                    // 【群聊发送逻辑】
+                    if (isGroup) {
+                        let grp = groups[currentChatPk];
+
+                        if (grp.type === 1) { // 幽灵群
+                            payloadObj.alias = profiles[pubKeyHex]?.name || 'Anon';
+                            let nonceStr = Array.from(sodium.randombytes_buf(8)).map(b => b.toString(16).padStart(2,'0')).join('');
+                            payloadObj.nonce = nonceStr;
+                            myGhostNonces.add(nonceStr); // 记录属于我发送的特征
+                            let payloadStr = JSON.stringify(payloadObj);
+
+                            // 用群私钥打包发给群公钥
+                            let { wrapEvent, rumorId } = await makeGiftWrap(grp.key_hex, currentChatPk, payloadStr, 14);
+                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", wrapEvent]));
+
+                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                            messages[currentChatPk].push({ id: rumorId, sender: currentChatPk, text: payloadStr, time: nowTs, enc_type: 59 });
+
+                        } else { // 普通群
+                            payloadObj.name = profiles[pubKeyHex]?.name || '我';
+                            payloadObj.k = pubKeyHex;
+                            let payloadStr = JSON.stringify(payloadObj);
+
+                            let keyBytes = new Uint8Array(grp.key_hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                            let nonceBytes = sodium.randombytes_buf(24);
+                            let dataBytes = new TextEncoder().encode(payloadStr);
+                            let ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(dataBytes, null, null, nonceBytes, keyBytes);
+
+                            let finalPayload = new Uint8Array(1 + 24 + ciphertext.length);
+                            finalPayload[0] = 2;
+                            finalPayload.set(nonceBytes, 1);
+                            finalPayload.set(ciphertext, 25);
+                            let b64Content = bytesToBase64(finalPayload);
+
+                            let tags = [["g", currentChatPk]];
+                            let difficulty = currentChatPk === "feb75fb664b41f95" ? 16 : 8; // 官方群难度16，普通群8
+
+                            let event = minePowAndSign(privKeyHex, 42, b64Content, tags, difficulty);
+                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", event]));
+
+                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                            messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payloadStr, time: event.created_at, enc_type: 0 });
+                        }
+                    }
+                    // 【私聊发送逻辑】
+                    else {
+                        let payloadStr = text;
+                        if (pendingImageB64) payloadStr = JSON.stringify(payloadObj);
+
+                        if (useNip59) {
+                            let { wrapEvent, rumorId, rumorEvent } = await makeGiftWrap(privKeyHex, currentChatPk, payloadStr, 14, [["p", currentChatPk]]);
+                            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", wrapEvent]));
+
+                            // 抄送自己以实现多端漫游
+                            if (currentChatPk !== pubKeyHex) {
+                                let selfWrap = await makeGiftWrap(privKeyHex, pubKeyHex, payloadStr, 14, [["p", currentChatPk]]);
+                                if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", selfWrap.wrapEvent]));
+                            }
+
+                            if (!messages[currentChatPk]) messages[currentChatPk] = [];
+                            messages[currentChatPk].push({ id: rumorId, sender: pubKeyHex, text: payloadStr, time: rumorEvent.created_at, enc_type: 59 });
+                        } else {
+                            let ciphertext = await nt.nip04.encrypt(privKeyHex, currentChatPk, payloadStr);
+                            let event = await publishEvent(4, ciphertext, [["p", currentChatPk]]);
+                            if (!messages[currentChatPk]) messages[currentChatPk] =[];
+                            messages[currentChatPk].push({ id: event.id, sender: pubKeyHex, text: payloadStr, time: event.created_at, enc_type: 4 });
+                        }
+                    }
+
+                    syncLocalEncryptedCache();
+                    renderMessages(true); renderContacts();
+                    updateActivity();
+                }
 
         function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth >= 768) { e.preventDefault(); sendMessage(); } }
 
