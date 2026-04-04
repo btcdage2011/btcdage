@@ -399,48 +399,81 @@
         }
 
         // ================= WebCrypto NIP-44 (Python Compatible) =================
-                async function derivePythonNip44Key(privHex, pubHex) {
-                    let fullSharedSecret = null;
-                    const originalSubarray = Uint8Array.prototype.subarray;
-                    try {
-                        // 黑科技：利用闭包外拦截 nostr-tools 内部的 subarray 调用，
-                        // 以获取完整的 33字节 ECDH 共享点 (包含 Y 坐标的奇偶性)
-                        Uint8Array.prototype.subarray = function(start, end) {
-                            if (this.length === 33 && start === 1 && end === 33) {
-                                fullSharedSecret = new Uint8Array(this);
-                            }
-                            return originalSubarray.apply(this, arguments);
-                        };
 
-                        let utilsObj = nt.nip44.utils;
-                        if (utilsObj.v2) utilsObj = utilsObj.v2;
-                        utilsObj.getConversationKey(privHex, pubHex);
-                    } finally {
-                        // 务必恢复原生方法，防止影响浏览器其他功能
-                        Uint8Array.prototype.subarray = originalSubarray;
+        // 修复 50% 概率解密失败的致命数学 Bug：
+        // 椭圆曲线上，私钥推导公钥若产生奇数Y坐标，会导致双方 ECDH 计算的共享点呈相反数，最终哈希雪崩。
+        // 此函数主动验证 Y 坐标，如果为奇数，则在数学上将其反转 (n - scalar) 以实现 100% 兼容。
+        function normalizePrivateKey(privHex) {
+            const G_X = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+            let fullSharedSecret = null;
+            const originalSubarray = Uint8Array.prototype.subarray;
+            try {
+                Uint8Array.prototype.subarray = function(start, end) {
+                    if (this.length === 33 && start === 1 && end === 33) {
+                        fullSharedSecret = new Uint8Array(this);
                     }
+                    return originalSubarray.apply(this, arguments);
+                };
+                let utilsObj = nt.nip44.utils;
+                if (utilsObj.v2) utilsObj = utilsObj.v2;
+                utilsObj.getConversationKey(privHex, G_X);
+            } finally {
+                Uint8Array.prototype.subarray = originalSubarray;
+            }
 
-                    if (!fullSharedSecret) {
-                        throw new Error("Failed to intercept shared secret. Ensure nostr.bundle.js is correct.");
+            if (fullSharedSecret && fullSharedSecret[0] === 3) {
+                // 第一字节是 0x03，代表 Y 坐标是奇数，执行标准的大数取负
+                const n = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
+                const privBigInt = BigInt("0x" + privHex);
+                return (n - privBigInt).toString(16).padStart(64, '0');
+            }
+            return privHex;
+        }
+
+        async function derivePythonNip44Key(privHex, pubHex) {
+            // 对任何传入的私钥进行强制标准化
+            const normalizedPriv = normalizePrivateKey(privHex);
+
+            let fullSharedSecret = null;
+            const originalSubarray = Uint8Array.prototype.subarray;
+            try {
+                // 黑科技：利用闭包外拦截 nostr-tools 内部的 subarray 调用，
+                // 获取未经破坏的 33字节 完整 ECDH 共享点
+                Uint8Array.prototype.subarray = function(start, end) {
+                    if (this.length === 33 && start === 1 && end === 33) {
+                        fullSharedSecret = new Uint8Array(this);
                     }
+                    return originalSubarray.apply(this, arguments);
+                };
 
-                    // 执行 Python ecdh() 的默认行为：SHA256(compressed_point)
-                    const sharedPointHash = new Uint8Array(await crypto.subtle.digest('SHA-256', fullSharedSecret));
+                let utilsObj = nt.nip44.utils;
+                if (utilsObj.v2) utilsObj = utilsObj.v2;
+                utilsObj.getConversationKey(normalizedPriv, pubHex);
+            } finally {
+                Uint8Array.prototype.subarray = originalSubarray;
+            }
 
-                    // 完美复刻 Python 端的 HKDF 参数
-                    const keyMaterial = await crypto.subtle.importKey(
-                        "raw", sharedPointHash, { name: "HKDF" }, false, ["deriveBits"]
-                    );
-                    const salt = new TextEncoder().encode("nip44-v2");
-                    const info = new Uint8Array(0);
+            if (!fullSharedSecret) {
+                throw new Error("Failed to intercept shared secret. Ensure nostr.bundle.js is loaded.");
+            }
 
-                    const derivedBits = await crypto.subtle.deriveBits(
-                        { name: "HKDF", hash: "SHA-256", salt: salt, info: info },
-                        keyMaterial,
-                        256 // 256 bits = 32 bytes
-                    );
-                    return new Uint8Array(derivedBits);
-                }
+            // 执行 Python ecdh() 的默认计算方式：SHA256(compressed_point)
+            const sharedPointHash = new Uint8Array(await crypto.subtle.digest('SHA-256', fullSharedSecret));
+
+            // 复刻 Python HKDF 参数进行密钥推导
+            const keyMaterial = await crypto.subtle.importKey(
+                "raw", sharedPointHash, { name: "HKDF" }, false, ["deriveBits"]
+            );
+            const salt = new TextEncoder().encode("nip44-v2");
+            const info = new Uint8Array(0);
+
+            const derivedBits = await crypto.subtle.deriveBits(
+                { name: "HKDF", hash: "SHA-256", salt: salt, info: info },
+                keyMaterial,
+                256 // 256 bits = 32 bytes
+            );
+            return new Uint8Array(derivedBits);
+        }
 
                 async function pythonNip44Encrypt(privHex, pubHex, plaintext) {
                     const key = await derivePythonNip44Key(privHex, pubHex);
@@ -739,29 +772,33 @@
         }
 
         // ================= 密码验证分配 =================
-        function closePwdVerifyModal() { document.getElementById('pwd-verify-modal').classList.add('hidden'); pwdContext = null; pendingAction = null; }
+              function closePwdVerifyModal() {
+                  document.getElementById('pwd-verify-modal').classList.add('hidden');
+                  pwdContext = null;
+                  // 修复 Bug：此处绝不能添加 pendingAction = null，否则会截断密码验证后的正确回调！
+              }
 
-        async function submitPwdVerify() {
-            let pwd = document.getElementById('verify-pwd').value;
-            if (!pwd) return;
+              async function submitPwdVerify() {
+                  let pwd = document.getElementById('verify-pwd').value;
+                  if (!pwd) return;
 
-            if (pwdContext === 'login_account' && accountToLogin) {
-                let acc = accounts.find(a => a.pubkey === accountToLogin);
-                try {
-                    privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
-                    pubKeyHex = accountToLogin;
-                    closePwdVerifyModal();
-                    await initializeApp();
-                } catch(e) { alert("密码错误，解密失败！"); }
-            } else if (pwdContext === 'action_verify') {
-                let acc = accounts.find(a => a.pubkey === pubKeyHex);
-                try {
-                    let realSk = await aesDecrypt(acc.encPrivKey, pwd);
-                    closePwdVerifyModal();
-                    executePendingKeyAction(realSk);
-                } catch(e) { alert("密码验证失败！"); }
-            }
-        }
+                  if (pwdContext === 'login_account' && accountToLogin) {
+                      let acc = accounts.find(a => a.pubkey === accountToLogin);
+                      try {
+                          privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
+                          pubKeyHex = accountToLogin;
+                          closePwdVerifyModal();
+                          await initializeApp();
+                      } catch(e) { alert("密码错误，解密失败！"); }
+                  } else if (pwdContext === 'action_verify') {
+                      let acc = accounts.find(a => a.pubkey === pubKeyHex);
+                      try {
+                          let realSk = await aesDecrypt(acc.encPrivKey, pwd);
+                          closePwdVerifyModal();
+                          executePendingKeyAction(realSk);
+                      } catch(e) { alert("密码验证失败！"); }
+                  }
+              }
 
         async function unlockApp() {
             let pwd = document.getElementById('lock-pwd').value;
