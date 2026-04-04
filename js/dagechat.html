@@ -2005,13 +2005,13 @@
                             renderContacts();
                             selectContact(gid);
                             initRelayConnection(); // 重新订阅
-
-                    // 下发 REQ 监听该群
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        const subId = "sub_group_" + gid.substring(0, 8);
-                        const filter = isGhost ? { kinds: [1059], "#p": [gid], limit: 50 } : { kinds:[42, 30078], "#g": [gid], limit: 50 };
-                        ws.send(JSON.stringify(["REQ", subId, filter]));
-                    }
+                    // 
+                    // // 下发 REQ 监听该群
+                    // if (ws && ws.readyState === WebSocket.OPEN) {
+                    //     const subId = "sub_group_" + gid.substring(0, 8);
+                    //     const filter = isGhost ? { kinds: [1059], "#p": [gid], limit: 50 } : { kinds:[42, 30078], "#g": [gid], limit: 50 };
+                    //     ws.send(JSON.stringify(["REQ", subId, filter]));
+                    // }
                 }
 
                 async function generateInviteLink(gid) {
