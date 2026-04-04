@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.0.1</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.0.2</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -649,24 +649,59 @@
         }
         function escapeHTML(str) { return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)); }
 
-        // 解析包含图片的特殊 JSON 消息格式
-        function parseMessageContent(rawContent) {
+        // 解析包含图片或转发卡片的特殊 JSON 消息格式 (支持深度穿透解析外壳)
+                function parseMessageContent(rawContent) {
                     let parsed = { text: rawContent, imageB64: null, isHistory: false, historyData: null };
-                    if (rawContent && rawContent.trim().startsWith('{')) {
+
+                    if (rawContent && typeof rawContent === 'string' && rawContent.trim().startsWith('{')) {
                         try {
                             let j = JSON.parse(rawContent);
+
+                            // 场景 1：如果第一层就是 history 卡片 (通常发生在 NIP-59 私聊中)
                             if (j.type === 'history') {
                                 parsed.isHistory = true;
                                 parsed.historyData = j;
-                                parsed.text = ""; // 置空纯文本，走卡片渲染
-                            } else {
-                                if (j.text !== undefined) parsed.text = j.text;
-                                if (j.image) parsed.imageB64 = j.image;
-                                if (j.alias) parsed.alias = j.alias;
-                                if (j.nonce) parsed.nonce = j.nonce;
-                                if (j.name) parsed.name = j.name;
+                                parsed.text = "";
+                                return parsed;
                             }
-                        } catch(e) {}
+
+                            // 场景 2：剥开外壳 (群聊发信时附加了 name/k/alias 字段，核心内容被包裹在 j.text 里)
+                            if (j.text !== undefined) {
+                                let innerText = j.text;
+
+                                // 🌟 核心修复：深度穿透！检查 innerText 是否又是一个 JSON 字符串 (如 history 卡片)
+                                if (typeof innerText === 'string' && innerText.trim().startsWith('{')) {
+                                    try {
+                                        let innerJ = JSON.parse(innerText);
+                                        if (innerJ.type === 'history') {
+                                            parsed.isHistory = true;
+                                            parsed.historyData = innerJ;
+                                            parsed.text = "";
+
+                                            // 保留外壳可能带有的发送者信息
+                                            if (j.alias) parsed.alias = j.alias;
+                                            if (j.nonce) parsed.nonce = j.nonce;
+                                            if (j.name) parsed.name = j.name;
+
+                                            return parsed; // 成功捕获嵌套卡片，直接返回
+                                        }
+                                    } catch(e) {
+                                        // innerText 不是合法的 JSON，那就是普通的带大括号的文字，继续往下走
+                                    }
+                                }
+
+                                parsed.text = innerText; // 提取纯文本
+                            }
+
+                            // 提取图片和发送者特征
+                            if (j.image) parsed.imageB64 = j.image;
+                            if (j.alias) parsed.alias = j.alias;
+                            if (j.nonce) parsed.nonce = j.nonce;
+                            if (j.name) parsed.name = j.name;
+
+                        } catch(e) {
+                            console.error("Parse Message Content Error:", e);
+                        }
                     }
                     return parsed;
                 }
