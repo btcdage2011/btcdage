@@ -43,7 +43,13 @@
             <div class="space-y-5">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Relay 服务器</label>
-                    <input type="text" id="relay-input" class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none" value="wss://relay.snort.social">
+                    <input type="text" id="relay-input" class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none" value="wss://relay.snort.social" oninput="checkWssTrustLink('relay-input', 'trust-hint-login')">
+
+                    <!-- 新增：自签名证书引导 -->
+                    <div id="trust-hint-login" class="hidden mt-2 text-xs text-red-500 bg-red-50 p-2 rounded border border-red-100 shadow-sm">
+                        <span>⚠️ 若为自签名节点，连接前请先：</span>
+                        <a href="#" id="trust-hint-login-link" target="_blank" class="text-blue-600 font-bold underline ml-1 whitespace-nowrap">点击此处信任证书</a>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">私钥 (nsec / hex)</label>
@@ -84,6 +90,7 @@
                       <div class="flex items-center text-xs text-gray-500 mt-0.5">
                           <span id="relay-status" class="w-2 h-2 rounded-full bg-red-500 mr-1.5 shadow-sm shrink-0"></span>
                           <span id="current-relay-display" class="truncate">Relay</span>
+                          <a href="#" id="sidebar-trust-link" target="_blank" class="hidden ml-2 px-1.5 py-0.5 bg-red-50 text-red-500 border border-red-200 rounded text-[10px] hover:bg-red-100 transition whitespace-nowrap shadow-sm">信任证书</a>
                       </div>
                   </div>
               </div>
@@ -239,7 +246,12 @@
             <div class="space-y-4">
                 <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <label class="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wider">当前连接 Relay</label>
-                    <input type="text" id="edit-relay" class="w-full border-none bg-transparent p-0 text-base md:text-sm focus:ring-0 text-blue-600 font-medium">
+                    <input type="text" id="edit-relay" class="w-full border-none bg-transparent p-0 text-base md:text-sm focus:ring-0 text-blue-600 font-medium" oninput="checkWssTrustLink('edit-relay', 'trust-hint-profile')">
+                    <div id="trust-hint-profile" class="hidden mt-2 text-xs text-red-500 border-t border-red-100 pt-2">
+                        <span>⚠️ 节点断开？自签名节点请先：</span>
+                        <a href="#" id="trust-hint-profile-link" target="_blank" class="text-blue-600 font-bold underline whitespace-nowrap">点击信任证书</a>
+                    </div>
+
                 </div>
                 <div class="flex space-x-3">
                     <div class="flex-1">
@@ -351,7 +363,28 @@
         let useNip59 = true;
 
         // ================= 工具函数 =================
+        // ================= 自签名证书引导功能 =================
+                function checkWssTrustLink(inputId, hintId) {
+                    let val = document.getElementById(inputId).value.trim();
+                    let hintEl = document.getElementById(hintId);
+                    let linkEl = document.getElementById(hintId + '-link');
+                    if (val.startsWith('wss://')) {
+                        linkEl.href = val.replace('wss://', 'https://');
+                        hintEl.classList.remove('hidden');
+                    } else {
+                        hintEl.classList.add('hidden');
+                    }
+                }
 
+                function updateSidebarTrustLink(show) {
+                    let linkEl = document.getElementById('sidebar-trust-link');
+                    if (show && currentRelayUrl.startsWith('wss://')) {
+                        linkEl.href = currentRelayUrl.replace('wss://', 'https://');
+                        linkEl.classList.remove('hidden');
+                    } else {
+                        linkEl.classList.add('hidden');
+                    }
+                }
         // 兼容 PC 端 Base64 头像与标准 URL 头像
                 function formatAvatarUrl(pic) {
                     if (!pic) return '';
@@ -687,7 +720,10 @@
         function showAddAccountArea() {
             document.getElementById('account-list-area').classList.add('hidden');
             document.getElementById('add-account-area').classList.remove('hidden');
+            // 弹窗开启时自动检测当前输入框并更新提示
+            checkWssTrustLink('relay-input', 'trust-hint-login');
         }
+
         function hideAddAccountArea() {
             document.getElementById('add-account-area').classList.add('hidden');
             document.getElementById('account-list-area').classList.remove('hidden');
@@ -946,15 +982,20 @@
             if (ws) { ws.onclose = null; ws.close(); }
             document.getElementById('relay-status').classList.replace('bg-green-500', 'bg-red-500');
 
+            // 尝试连接前，如果在 wss 模式下则预先显示信任证书按钮 (连接成功后会自动隐藏)
+            updateSidebarTrustLink(true);
+
             try { ws = new WebSocket(currentRelayUrl); } catch(e) { return; }
 
             ws.onopen = () => {
                 document.getElementById('relay-status').classList.replace('bg-red-500', 'bg-green-500');
+                // 连接成功，说明证书已信任或无需信任，隐藏按钮
+                updateSidebarTrustLink(false);
                 if (reconnectTimer) clearInterval(reconnectTimer);
 
                 const req =["REQ", "sub-" + Date.now(),
                     { kinds: [0, 3], authors: [pubKeyHex] },
-                    { kinds: [4, 1059], "#p": [pubKeyHex] },
+                    { kinds: [4, 1059], "#p":[pubKeyHex] },
                     { kinds: [4], authors: [pubKeyHex] }
                 ];
                 ws.send(JSON.stringify(req));
@@ -969,7 +1010,14 @@
             ws.onclose = () => {
                 if(isLocked) return;
                 document.getElementById('relay-status').classList.replace('bg-green-500', 'bg-red-500');
+                // 连接断开，重新显示证书引导
+                updateSidebarTrustLink(true);
                 reconnectTimer = setTimeout(initRelayConnection, 3000);
+            };
+
+            ws.onerror = (e) => {
+                // 发生底层网络/证书错误
+                updateSidebarTrustLink(true);
             };
         }
 
@@ -1482,6 +1530,9 @@
             let skInput = document.getElementById('my-nsec-display');
             skInput.value = "••••••••••••••"; skInput.type = 'password';
             document.getElementById('btn-toggle-key').innerText = '显示';
+
+            // 弹窗开启时自动检测当前中继设置并更新提示
+            checkWssTrustLink('edit-relay', 'trust-hint-profile');
         }
 
         function closeProfileModal() {
