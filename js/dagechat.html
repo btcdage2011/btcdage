@@ -1199,15 +1199,15 @@
                 let ghostGids = Object.keys(groups).filter(gid => groups[gid].type === 1);
                 let normalGids = Object.keys(groups).filter(gid => groups[gid].type === 0);
 
-                // 核心修复：把群组 ID 也加入订阅列表
+                // 核心修复：为群组请求增加 limit: 100，防止新浏览器导入时被历史海量数据冲垮连接
                 const req =["REQ", "sub-" + Date.now(),
                     { kinds: [0], authors: [pubKeyHex] },
-                    { kinds: [4, 1059], "#p":[pubKeyHex] },
-                    { kinds: [4], authors: [pubKeyHex] }
+                    { kinds: [4, 1059], "#p":[pubKeyHex], limit: 100 },
+                    { kinds: [4], authors: [pubKeyHex], limit: 100 }
                 ];
 
-                if (ghostGids.length > 0) req.push({ kinds: [1059], "#p": ghostGids });
-                if (normalGids.length > 0) req.push({ kinds: [42, 30078], "#g": normalGids });
+                if (ghostGids.length > 0) req.push({ kinds: [1059], "#p": ghostGids, limit: 100 });
+                if (normalGids.length > 0) req.push({ kinds: [42, 30078], "#g": normalGids, limit: 100 });
 
                 ws.send(JSON.stringify(req));
 
@@ -1255,42 +1255,57 @@
             }
 
             if (ev.kind === 3 && ev.pubkey === pubKeyHex) {
-                let newContacts = ev.tags.filter(t => t[0] === 'p').map(t => t[1]);
-                contacts =[...new Set([...contacts, ...newContacts])];
+                            let newContacts = ev.tags.filter(t => t[0] === 'p').map(t => t[1]);
+                            contacts =[...new Set([...contacts, ...newContacts])];
 
-                // 核心修复：解密 Kind 3，同步远端群组与联系人
-                let isGroupChanged = false;
-                if (ev.content && ev.content.length > 20) {
-                    try {
-                        let decrypted = await pythonNip44Decrypt(privKeyHex, pubKeyHex, ev.content);
-                        if (decrypted) {
-                            let data = JSON.parse(decrypted);
-                            if (data.groups) {
-                                data.groups.forEach(g => {
-                                    if (!groups[g.id]) {
-                                        groups[g.id] = { name: g.name, key_hex: g.key, type: g.type || 0, owner: g.owner || null };
-                                        isGroupChanged = true;
+                            let newlyAddedGhostGids = [];
+                            let newlyAddedNormalGids = [];
+
+                            if (ev.content && ev.content.length > 20) {
+                                try {
+                                    let decrypted = await pythonNip44Decrypt(privKeyHex, pubKeyHex, ev.content);
+                                    if (decrypted) {
+                                        let data = JSON.parse(decrypted);
+                                        if (data.groups) {
+                                            data.groups.forEach(g => {
+                                                if (!groups[g.id]) {
+                                                    groups[g.id] = { name: g.name, key_hex: g.key, type: g.type || 0, owner: g.owner || null };
+                                                    // 记录新发现的群组，用于动态追加订阅
+                                                    if (g.type === 1) newlyAddedGhostGids.push(g.id);
+                                                    else newlyAddedNormalGids.push(g.id);
+                                                }
+                                            });
+                                        }
+                                        if (data.contacts) {
+                                            data.contacts.forEach(c => {
+                                                if (!contacts.includes(c.pubkey)) contacts.push(c.pubkey);
+                                                if (c.name && !profiles[c.pubkey]) profiles[c.pubkey] = { name: c.name };
+                                            });
+                                        }
                                     }
-                                });
+                                } catch(e) { console.error("Kind 3 Decrypt Error:", e); }
                             }
-                            if (data.contacts) {
-                                data.contacts.forEach(c => {
-                                    if (!contacts.includes(c.pubkey)) contacts.push(c.pubkey);
-                                    if (c.name && !profiles[c.pubkey]) profiles[c.pubkey] = { name: c.name };
-                                });
+
+                            syncLocalEncryptedCache();
+
+                            // 核心修复：不要断开重连！而是通过现有的 WebSocket 动态追加 REQ 订阅指令。
+                            // 这样既能拉取新群组消息，又不会打断当前正在下载的头像和历史记录流。
+                            if (newlyAddedGhostGids.length > 0 || newlyAddedNormalGids.length > 0) {
+                                let appendReq = ["REQ", "sub-append-groups-" + Date.now()];
+                                if (newlyAddedGhostGids.length > 0) appendReq.push({ kinds: [1059], "#p": newlyAddedGhostGids, limit: 100 });
+                                if (newlyAddedNormalGids.length > 0) appendReq.push({ kinds: [42, 30078], "#g": newlyAddedNormalGids, limit: 100 });
+
+                                if (ws && ws.readyState === WebSocket.OPEN) {
+                                    ws.send(JSON.stringify(appendReq));
+                                }
                             }
+
+                            let allPksToFetch = [...new Set([...contacts, ...Object.keys(messages)])];
+                            if (allPksToFetch.length > 0) ws.send(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: allPksToFetch }]));
+
+                            renderContacts();
+                            return;
                         }
-                    } catch(e) {}
-                }
-
-                syncLocalEncryptedCache();
-                if (isGroupChanged) { initRelayConnection(); } // 发现新群，重新订阅
-
-                let allPksToFetch = [...new Set([...contacts, ...Object.keys(messages)])];
-                if (allPksToFetch.length > 0) ws.send(JSON.stringify(["REQ", "fetch0-" + Date.now(), { kinds: [0], authors: allPksToFetch }]));
-                renderContacts();
-                return;
-            }
 
             if (ev.kind === 5) {
                 let deletedIds = ev.tags.filter(t => t[0] === 'e').map(t => t[1]);
@@ -1399,36 +1414,75 @@
         }
 
         // ================= 前端发送图片处理 (Canvas 压缩引擎) =================
-        function handleImageSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    let w = img.width;
-                    let h = img.height;
-                    const maxSide = 1000;
-                    if (Math.max(w, h) > maxSide) {
-                        const ratio = maxSide / Math.max(w, h);
-                        w = Math.floor(w * ratio);
-                        h = Math.floor(h * ratio);
-                    }
-                    canvas.width = w; canvas.height = h;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, w, h);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        // ================= 前端发送图片处理 (Canvas 安全重绘压缩引擎) =================
+                function handleImageSelect(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
 
-                    pendingImageB64 = dataUrl.split(',')[1];
-                    document.getElementById('image-preview-area').classList.remove('hidden');
-                    document.getElementById('image-preview-img').src = dataUrl;
+                    // 安全检查：仅允许常规图片格式
+                    if (!file.type.match('image.*')) {
+                        alert("请选择有效的图片文件！");
+                        event.target.value = '';
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = new Image();
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            let w = img.width;
+                            let h = img.height;
+                            const maxSide = 1000;
+
+                            // 等比例缩放计算
+                            if (Math.max(w, h) > maxSide) {
+                                const ratio = maxSide / Math.max(w, h);
+                                w = Math.floor(w * ratio);
+                                h = Math.floor(h * ratio);
+                            }
+
+                            canvas.width = w;
+                            canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+
+                            // 🛡️ 核心防毒安全层：强制填充纯白背景
+                            // 作用：摧毁 PNG/WebP 的 Alpha (透明) 通道，防止攻击者在透明像素中隐藏恶意 Shellcode。
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(0, 0, w, h);
+
+                            // 将用户图片像素级地绘制在纯白背景之上（剥离所有 EXIF 等元数据）
+                            ctx.drawImage(img, 0, 0, w, h);
+
+                            // 强制导出为 JPEG 格式 (JPEG 绝对不支持透明通道，形成物理隔离双保险)，质量 0.7
+                            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+                            // 截取 base64 数据体 (去掉 data:image/jpeg;base64, 前缀)
+                            pendingImageB64 = dataUrl.split(',')[1];
+
+                            // 显示预览 UI
+                            document.getElementById('image-preview-area').classList.remove('hidden');
+                            document.getElementById('image-preview-img').src = dataUrl;
+                        }
+
+                        // 处理图片加载失败（恶意损坏的图片文件头会导致加载失败）
+                        img.onerror = function() {
+                            alert("图片读取失败，可能是文件已损坏或格式不被支持！");
+                            clearPendingImage();
+                        }
+
+                        img.src = e.target.result;
+                    }
+
+                    // 处理文件读取错误
+                    reader.onerror = function() {
+                        alert("文件读取错误，请重试！");
+                        clearPendingImage();
+                    }
+
+                    reader.readAsDataURL(file);
+                    event.target.value = '';
                 }
-                img.src = e.target.result;
-            }
-            reader.readAsDataURL(file);
-            event.target.value = '';
-        }
 
         function clearPendingImage() {
             pendingImageB64 = null;
