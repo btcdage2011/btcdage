@@ -191,7 +191,7 @@
                     </button>
                     <input type="file" id="image-upload" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
 
-                    <textarea id="msg-input" rows="1" placeholder="输入消息... 长按气泡更多操作" class="flex-1 border border-gray-300 rounded-xl py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm resize-none text-base max-h-32 no-scrollbar" oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'" onkeypress="handleEnter(event)"></textarea>
+                    <textarea id="msg-input" rows="1" placeholder="输入消息... 长按气泡更多操作" class="flex-1 border border-gray-300 rounded-xl py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm resize-none text-base max-h-32 no-scrollbar" oninput="handleChatInput(this)" onkeypress="handleEnter(event)"></textarea>
                     <button onclick="sendMessage()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 shadow-sm font-medium active:scale-95 h-[46px]">发送</button>
                 </div>
             </div>
@@ -565,6 +565,22 @@
            <div id="mention-member-list" class="flex-1 overflow-y-auto no-scrollbar space-y-1"></div>
        </div>
    </div>
+   <!-- ================= 气泡成员操作菜单 ================= -->
+       <div id="member-action-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden z-[70] flex flex-col justify-end md:justify-center md:items-center transition-opacity" onclick="closeMemberActionModal(event)">
+           <div id="member-action-content" class="bg-white w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
+               <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2 md:hidden"></div>
+               <div class="p-4 text-center border-b border-gray-100">
+                   <span id="member-action-name" class="font-bold text-gray-800 text-lg truncate block">User</span>
+               </div>
+               <div class="p-2 space-y-1">
+                   <button id="btn-member-mention" class="w-full py-4 text-blue-600 text-[17px] active:bg-blue-50 rounded-lg text-center font-bold">💬 @Ta (提及此人)</button>
+                   <button id="btn-member-profile" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">👤 查看资料</button>
+                   <div class="h-[1px] bg-gray-100 my-1"></div>
+                   <button onclick="closeMemberActionModal()" class="w-full py-4 text-gray-500 text-[17px] active:bg-gray-100 rounded-lg text-center">取消</button>
+               </div>
+           </div>
+       </div>
+
                <!-- ================= 聊天记录导出弹窗 ================= -->
     <div id="export-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[90] flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
@@ -2668,10 +2684,10 @@
 
                 let mCount = mentionCounts[pk] || 0;
                 let mentionPrefix = mCount > 0 ? `<span class="text-red-500 font-bold">[有人@我]</span> ` : '';
-                let lastMsg = mentionPrefix + escapeHTML(displayLast.substring(0, 20));
+                let cleanLastMsg = displayLast.substring(0, 20); // 提取纯文本
                 let strangerBadge = isStranger ? `<span class="ml-1.5 px-1 py-0.5 bg-gray-200 text-gray-500 text-[9px] rounded whitespace-nowrap align-middle">陌生人</span>` : '';
-
-                div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 text-base md:text-sm truncate leading-tight">${escapeHTML(displayName)}${strangerBadge}</div><div class="text-sm md:text-xs text-gray-500 truncate mt-1">${escapeHTML(lastMsg)}</div></div>`;
+                // 注意：只对 cleanLastMsg 进行 escapeHTML，防止把 mentionPrefix 的 span 标签也给转义了
+                div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 text-base md:text-sm truncate leading-tight">${escapeHTML(displayName)}${strangerBadge}</div><div class="text-sm md:text-xs text-gray-500 truncate mt-1">${mentionPrefix}${escapeHTML(cleanLastMsg)}</div></div>`;
                 list.appendChild(div);
             });
         }
@@ -2848,8 +2864,9 @@
 
                                   // 如果被 @ 了，名字旁边加个小徽章
                                   let atBadge = isTargetMe ? `<span class="ml-1.5 px-1.5 py-0.5 bg-red-100 text-red-600 border border-red-200 rounded font-bold text-[9px] shadow-sm">🎯 提到了你</span>` : '';
-                                  senderNameHtml = `<div class="text-[11px] text-gray-500 mb-1 ml-1 flex items-center">${escapeHTML(sName)} ${atBadge}</div>`;
-                              }
+                                            // 核心修复：加上 onclick 事件并增加 hover 变色效果，提示用户可点击
+                                  senderNameHtml = `<div onclick="openMemberActionModal('${m.sender}', '${escapeHTML(sName)}')" class="text-[11px] text-gray-500 mb-1 ml-1 flex items-center cursor-pointer hover:text-blue-500 active:scale-95 transition-colors w-max select-none">${escapeHTML(sName)} ${atBadge}</div>`;
+                                  }
 
                               // 气泡样式逻辑：如果是别人 @ 我的消息，把背景变成醒目的浅红色
                               let bubbleStyleClass = isMe
@@ -2997,7 +3014,20 @@
 
 
         function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth >= 768) { e.preventDefault(); sendMessage(); } }
+        function handleChatInput(el) {
+            // 1. 自动调整高度
+            el.style.height = '';
+            el.style.height = el.scrollHeight + 'px';
 
+            // 2. 检测是否打出了 @
+            if (currentChatPk && groups[currentChatPk]) {
+                let val = el.value;
+                // 如果最后一个字符是 @，且是开头或者前面是个空格
+                if (val.endsWith('@') || val.endsWith(' @') || val.endsWith('\n@')) {
+                    openMentionModal(); // 自动激活选人列表
+                }
+            }
+        }
         // ================= 对方资料卡与加好友 =================
         function showPeerProfileModal(peerPkToView = currentChatPk) {
             if(!currentChatPk) return;
@@ -3142,12 +3172,7 @@
                     ${blockBtn}
                 `;
             }
-            // 如果当前处于群聊模式，且点开的是别人的头像，加一个 💬 @Ta 的按钮
-            if (groups[currentChatPk] && peerPkToView !== pubKeyHex) { // 注意：你需要把点击头像时传的 pubkey 存到一个临时变量 peerPkToView 里
-                actionArea.innerHTML = `
-                    <button onclick="insertMention('${escapeHTML(prof.name || 'User')}', '${peerPkToView}'); closePeerProfileModal();" class="w-full mb-3 bg-blue-50 text-blue-600 py-3 rounded-xl hover:bg-blue-100 transition border border-blue-200 shadow-sm active:scale-95 text-sm font-bold flex items-center justify-center">💬 @Ta (提醒对方)</button>
-                ` + actionArea.innerHTML;
-            }
+
             document.getElementById('peer-profile-modal').classList.remove('hidden');
             // 强制先重置内部滚动条，保证每次打开都是顶部
             document.getElementById('peer-profile-content').children[1].scrollTop = 0;
@@ -3733,6 +3758,45 @@
                     } catch (e) { alert("加入群聊失败: " + e.message); }
                 }
 
+                // ================= 气泡成员点击交互 =================
+                let currentMemberActionPk = null;
+                let currentMemberActionName = null;
+
+                function openMemberActionModal(pk, name) {
+                    currentMemberActionPk = pk;
+                    currentMemberActionName = name;
+
+                    document.getElementById('member-action-name').innerText = name;
+
+                    // 绑定 @ 按钮事件
+                    document.getElementById('btn-member-mention').onclick = () => {
+                        closeMemberActionModal();
+                        // 因为我们在文本框前面加了空格，所以先判断文本框有没有内容
+                        let input = document.getElementById('msg-input');
+                        let val = input.value;
+                        input.value = val + (val.endsWith(' ') || val === '' ? '' : ' ') + `@${name} `;
+                        input.focus();
+                        pendingMentions[name] = pk;
+                        handleChatInput(input); // 触发高度自适应
+                    };
+
+                    // 绑定查看资料事件
+                    document.getElementById('btn-member-profile').onclick = () => {
+                        closeMemberActionModal();
+                        // 复用现成的查看资料函数（传入对应的公钥）
+                        currentChatPk = pk; // 临时将当前聊天对象设为他，利用现有函数机制渲染
+                        showPeerProfileModal();
+                    };
+
+                    document.getElementById('member-action-modal').classList.remove('hidden');
+                    setTimeout(() => { document.getElementById('member-action-content').classList.remove('translate-y-full'); }, 10);
+                }
+
+                function closeMemberActionModal(e) {
+                    if (e && e.target !== document.getElementById('member-action-modal')) return;
+                    document.getElementById('member-action-content').classList.add('translate-y-full');
+                    setTimeout(() => { document.getElementById('member-action-modal').classList.add('hidden'); }, 200);
+                }
                 async function addContact() {
                             let val = document.getElementById('new-contact-input').value.trim();
                             if (!val) return;
