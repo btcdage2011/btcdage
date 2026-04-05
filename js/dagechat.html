@@ -132,7 +132,7 @@
                   <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-400">🔍</span>
                   <input type="text" id="sidebar-filter-input" oninput="renderContacts()" placeholder="过滤当前列表..." class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
               </div>
-              <button onclick="openSearchModal()" title="全局全文检索" class="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 shadow-sm shrink-0">全文</button>
+              <button onclick="openSearchModal()" title="全局全文检索" class="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 shadow-sm shrink-0">全局检索</button>
           </div>
       </div>
 
@@ -767,6 +767,7 @@
         // 协议切换开关 (全局)
         let useNip59 = true;
         let blocklist = new Set(); // 本地黑名单
+        let localRelayBlocklist = new Set(); // 纯本地 Relay 屏蔽名单 (防僵尸节点)
         let replyTargetId = null; // 全局记录当前正在回复的消息ID
         let pendingMentions = {}; // 记录当前输入框里待发送的 @ 名单 {"名字": "公钥"}
         let mentionCounts = {}; // 记录每个会话里 @ 我的未读数量 {"群公钥": 1}
@@ -1995,6 +1996,9 @@
             // === 新增：读取黑名单 ===
             let savedBlocklist = localStorage.getItem(`dage_blocklist_${pubKeyHex}`);
             blocklist = savedBlocklist ? new Set(JSON.parse(savedBlocklist)) : new Set();
+            // 读取纯本地 Relay 屏蔽名单
+            let savedRelayBlock = localStorage.getItem(`dage_relay_block_${pubKeyHex}`);
+            localRelayBlocklist = savedRelayBlock ? new Set(JSON.parse(savedRelayBlock)) : new Set();
 
             renderContacts();
             initRelayConnection();
@@ -2134,6 +2138,27 @@
                 `;
                 list.appendChild(div);
             });
+
+            // 追加渲染本地屏蔽的节点
+              if (pubKeyHex && localRelayBlocklist.size > 0) {
+                  let divTitle = document.createElement('div');
+                  divTitle.className = "text-xs font-bold text-gray-400 mt-5 mb-2 flex items-center";
+                  divTitle.innerHTML = `<div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div><span class="mx-3">🚫 本设备已屏蔽的节点</span><div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div>`;
+                  list.appendChild(divTitle);
+
+                  localRelayBlocklist.forEach(url => {
+                      let div = document.createElement('div');
+                      div.className = "flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:bg-gray-800 transition rounded-lg opacity-60";
+                      div.innerHTML = `
+                          <div class="flex-1 min-w-0 pr-2">
+                              <div class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate line-through">${url}</div>
+                          </div>
+                          <button onclick="restoreRelayNode('${url}')" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-lg transition active:scale-95 shrink-0 text-xs font-bold border border-gray-200 dark:border-gray-700 hover:text-green-600 dark:hover:text-green-500">恢复</button>
+                      `;
+                      list.appendChild(div);
+                  });
+              }
+
         }
 
         function addRelayNode() {
@@ -2144,6 +2169,12 @@
             }
             if (currentRelayUrls.includes(url)) {
                 alert("该节点已存在"); return;
+            }
+
+            // 如果用户手动添加了一个曾被屏蔽的节点，解除它的屏蔽
+            if (localRelayBlocklist.has(url)) {
+                localRelayBlocklist.delete(url);
+                if (pubKeyHex) localStorage.setItem(`dage_relay_block_${pubKeyHex}`, JSON.stringify(Array.from(localRelayBlocklist)));
             }
 
             currentRelayUrls.push(url);
@@ -2162,9 +2193,15 @@
         }
 
         function removeRelayNode(url) {
-            if (!confirm(`确定要移除节点 ${url} 吗？`)) return;
+            if (!confirm(`确定要移除并屏蔽节点 ${url} 吗？\n(仅在此设备生效，云端同步时将自动忽略该节点)`)) return;
 
             currentRelayUrls = currentRelayUrls.filter(u => u !== url);
+
+            // 存入本地墓碑池
+            if (pubKeyHex) {
+                localRelayBlocklist.add(url);
+                localStorage.setItem(`dage_relay_block_${pubKeyHex}`, JSON.stringify(Array.from(localRelayBlocklist)));
+            }
 
             if (pubKeyHex) {
                 localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
@@ -2193,6 +2230,19 @@
 
             renderRelayManagerList();
         }
+
+        function restoreRelayNode(url) {
+                    localRelayBlocklist.delete(url);
+                    localStorage.setItem(`dage_relay_block_${pubKeyHex}`, JSON.stringify(Array.from(localRelayBlocklist)));
+                    if (!currentRelayUrls.includes(url)) {
+                        currentRelayUrls.push(url);
+                        localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
+                        initRelayConnection();
+                    }
+                    renderRelayManagerList();
+                }
+
+
 
         // ================= 手动强制增量云端同步 =================
         async function forceIncrementalUploadToCloud(btnElement) {
@@ -2384,10 +2434,12 @@
                               if (data.relays && Array.isArray(data.relays)) {
                                   let oldRelayCount = currentRelayUrls.length;
                                   data.relays.forEach(url => {
-                                      if (url.startsWith('ws') && !currentRelayUrls.includes(url)) {
+                                      // 核心拦截：如果在本地黑名单中，直接丢弃，不加入 currentRelayUrls
+                                      if (url.startsWith('ws') && !currentRelayUrls.includes(url) && !localRelayBlocklist.has(url)) {
                                           currentRelayUrls.push(url);
                                       }
                                   });
+
                                   // 如果云端带来了新的 Relay 节点
                                   if (currentRelayUrls.length !== oldRelayCount) {
                                       localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
