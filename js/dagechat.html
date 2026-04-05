@@ -33,7 +33,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white dark:bg-gray-900 md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.37</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.38</div>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -371,6 +371,13 @@
                 </div>
 
                   <div class="flex space-x-3">
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">我的公钥 (发给朋友添加你)</label>
+                        <div class="flex">
+                            <input type="text" id="my-npub-display" readonly class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-l-lg p-2 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 font-mono text-xs overflow-hidden outline-none">
+                            <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 rounded-r-lg text-sm border border-l-0 border-gray-300 dark:border-gray-600 transition font-medium">复制</button>
+                        </div>
+                    </div>
                       <div class="flex-1">
                           <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">展示昵称 (Name)</label>
                           <input type="text" id="edit-name" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
@@ -420,13 +427,13 @@
                       <textarea id="edit-relays-display" rows="2" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="wss://relay.damus.io, wss://..."></textarea>
                   </div>
 
-                  <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                      <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">我的公钥 (发给朋友添加你)</label>
-                      <div class="flex">
-                          <input type="text" id="my-npub-display" readonly class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-l-lg p-2 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 font-mono text-xs overflow-hidden outline-none">
-                          <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 rounded-r-lg text-sm border border-l-0 border-gray-300 dark:border-gray-600 transition font-medium">复制</button>
-                      </div>
+                  <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-3">
+                      <label class="flex items-center cursor-pointer">
+                          <input type="checkbox" id="edit-enable-notify" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                          <span class="ml-2 text-xs font-medium text-gray-700 dark:text-gray-200">启用后台系统通知 (仅私聊 / 群聊被@时提醒，不显示内容)</span>
+                      </label>
                   </div>
+
                   <div class="mt-2">
                       <label class="block text-xs font-bold text-red-600 mb-1">私钥备份 (须验证密码)</label>
                       <div class="flex">
@@ -2445,30 +2452,50 @@
                     triggerBlinkTitle();
                 }
 
-                // === 修复后的系统通知逻辑 ===
-                let isMeMsg = (senderPk === pubKeyHex);
+  // === 修复并对齐 PC 端的系统通知逻辑 (隐藏内容 + 群聊防打扰) ===
+          let isMeMsg = (senderPk === pubKeyHex);
 
-                if (!isMeMsg && !isBrowserActive) {
-                    let nSender = (profiles[senderPk] && profiles[senderPk].name) ? profiles[senderPk].name : "用户";
+          if (!isMeMsg && !isBrowserActive) {
+              // 检查用户是否开启了系统通知 (默认开启)
+              let notifySetting = localStorage.getItem('dage_enable_sys_notify_' + pubKeyHex);
+              if (notifySetting !== '0') {
+                  let nSender = (profiles[senderPk] && profiles[senderPk].name) ? profiles[senderPk].name : "用户";
+                  let isGroup = !!groups[peerPk];
 
-                    // 如果是幽灵群，尝试提取别名
-                    if (groups[peerPk] && groups[peerPk].type === 1) {
-                        try {
-                            let j = JSON.parse(decryptedText);
-                            if (j.alias) nSender = j.alias;
-                            else nSender = "Anon";
-                        } catch(e) {
-                            nSender = "Anon";
-                        }
-                    }
+                  if (isGroup && groups[peerPk].type === 1) {
+                      try {
+                          let j = JSON.parse(decryptedText);
+                          if (j.alias) nSender = j.alias;
+                          else nSender = "Anon";
+                      } catch(e) {
+                          nSender = "Anon";
+                      }
+                  }
 
-                    let nContext = groups[peerPk] ? " (" + groups[peerPk].name + ")" : "";
-                    let notifyTitle = isAtMe ? "【有人@你】 DageChat" : "新消息" + nContext;
-                    let safePreview = String(decryptedText).substring(0, 30);
-                    if (safePreview.startsWith('{')) safePreview = "[卡片/图片]";
+                  let notifyTitle = "";
+                  let notifyBody = "";
+                  let shouldNotify = false;
 
-                    showSystemNotification(notifyTitle, nSender + ": " + safePreview);
-                }
+                  if (isGroup) {
+                      // 群聊逻辑：仅仅当且仅当被 @ 时才提醒，绝对不附带聊天内容
+                      if (isAtMe) {
+                          notifyTitle = "【群聊通知】" + groups[peerPk].name;
+                          notifyBody = nSender + " @你发了一条消息";
+                          shouldNotify = true;
+                      }
+                  } else {
+                      // 私聊逻辑：收到即提醒，同样不附带聊天内容
+                      notifyTitle = "新私聊消息";
+                      notifyBody = nSender + " 给你发来一条消息";
+                      shouldNotify = true;
+                  }
+
+                  // 只有满足条件的才弹出系统横幅
+                  if (shouldNotify) {
+                      showSystemNotification(notifyTitle, notifyBody);
+                  }
+              }
+          }
 
                 // 存入消息字典
                 messages[peerPk].push({
@@ -3984,10 +4011,16 @@
             document.getElementById('edit-about').value = p.about || '';
             document.getElementById('edit-website').value = p.website || '';
             document.getElementById('edit-ln').value = p.lud16 || p.ln || '';
+
             document.getElementById('edit-relays-display').value = p.relays || '';
             document.getElementById('edit-locktime').value = lockTimeMins;
+            // 【新增】：加载通知开关状态 (默认开启)
+            let notifySetting = localStorage.getItem('dage_enable_sys_notify_' + pubKeyHex);
+            document.getElementById('edit-enable-notify').checked = (notifySetting !== '0');
 
             let skInput = document.getElementById('my-nsec-display');
+
+
             skInput.value = "••••••••••••••"; skInput.type = 'password';
             document.getElementById('btn-toggle-key').innerText = '显示';
             updateProfileAvatarPreview(); // 打开资料卡时刷新一次头像渲染
@@ -4006,10 +4039,19 @@
             let timeVal = parseInt(document.getElementById('edit-locktime').value);
             if(isNaN(timeVal) || timeVal < 1) timeVal = 1;
             if(timeVal > 600) timeVal = 600;
+
             lockTimeMins = timeVal;
-            localStorage.setItem(`dage_locktime_${pubKeyHex}`, lockTimeMins);
+            localStorage.setItem('dage_locktime_' + pubKeyHex, lockTimeMins);
+
+            // 【新增】：保存通知开关状态并按需请求权限
+            let isNotifyEnabled = document.getElementById('edit-enable-notify').checked;
+            localStorage.setItem('dage_enable_sys_notify_' + pubKeyHex, isNotifyEnabled ? '1' : '0');
+            if (isNotifyEnabled) {
+                requestNotificationPermission(); // 开启时自动向浏览器请求弹窗权限
+            }
 
             let name = document.getElementById('edit-name').value.trim();
+
             let pic = document.getElementById('edit-avatar').value.trim();
             let about = document.getElementById('edit-about').value.trim();
             let website = document.getElementById('edit-website').value.trim();
