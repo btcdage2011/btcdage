@@ -151,9 +151,9 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                                 </svg>
                             </div>
-                            <h3 class="text-xl font-bold text-gray-700 tracking-wide">去中心化安全协议端</h3>
+                            <h3 class="text-xl font-bold text-gray-700 tracking-wide">DageChat 去中心化安全协议端</h3>
                             <p class="text-sm mt-3 text-gray-400 max-w-md text-center leading-relaxed">
-                                基于 Nostr 协议构建,全场景加密通讯，无中心化服务器，密钥即身份
+                                基于 Nostr 协议构建，全场景加密通讯，无中心化服务器<br>密钥即身份，通讯主权，自由导出
                             </p>
                             <div class="mt-8 flex space-x-4">
                                 <span class="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full font-medium">NIP-04/59</span>
@@ -1872,6 +1872,24 @@
                                     if (profiles[ev.pubkey].picture) {
                                         let picUrl = formatAvatarUrl(profiles[ev.pubkey].picture);
                                         document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                                    }
+
+                                    // === 新增：同步更新外部的 accounts 数组，确保注销后登录页显示最新信息 ===
+                                    let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
+                                    if (accIdx > -1) {
+                                        let isChanged = false;
+                                        if (profiles[pubKeyHex].name && accounts[accIdx].name !== profiles[pubKeyHex].name) {
+                                            accounts[accIdx].name = profiles[pubKeyHex].name;
+                                            isChanged = true;
+                                        }
+                                        if (profiles[pubKeyHex].picture && accounts[accIdx].picture !== profiles[pubKeyHex].picture) {
+                                            accounts[accIdx].picture = profiles[pubKeyHex].picture;
+                                            isChanged = true;
+                                        }
+                                        // 如果有变化，立即落盘保存
+                                        if (isChanged) {
+                                            localStorage.setItem('dage_accounts', JSON.stringify(accounts));
+                                        }
                                     }
                                 }
 
