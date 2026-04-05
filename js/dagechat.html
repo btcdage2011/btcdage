@@ -606,8 +606,8 @@
                     <label class="block text-sm font-bold text-gray-700 mb-1">导出范围:</label>
                     <p id="export-target-desc" class="text-xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-100 font-mono break-all"></p>
                 </div>
-                <button onclick="executeExport()" class="w-full bg-green-500 text-white py-3 rounded-xl hover:bg-green-600 transition shadow font-bold active:scale-95 flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> 开始导出
+                <button onclick="actionWithPasswordVerification('exportChat')" class="w-full bg-green-500 text-white py-3 rounded-xl hover:bg-green-600 transition shadow font-bold active:scale-95 flex items-center justify-center">
+                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> 验证密码并导出
                 </button>
             </div>
         </div>
@@ -972,12 +972,13 @@
              });
 
              // 加入 blocklist 进行加密云端漫游
-            let payload = JSON.stringify({
-                groups: groupsList,
-                contacts: contactsList,
-                blocklist: Array.from(blocklist), // <--- 新增这行
-                ts: Math.floor(Date.now()/1000)
-            });
+             let payload = JSON.stringify({
+                 groups: groupsList,
+                 contacts: contactsList,
+                 blocklist: Array.from(blocklist),
+                 relays: currentRelayUrls, // <--- 新增 Relay 列表
+                 ts: Math.floor(Date.now()/1000)
+             });
              // 使用 Python 兼容的 NIP-44 加密打包
              let cipher = await pythonNip44Encrypt(privKeyHex, pubKeyHex, payload);
 
@@ -1470,6 +1471,9 @@
             } else if (pendingAction === 'copyKey') {
                 copyText(realNsec); alert('私钥已复制！请妥善保管！');
                 skInput.value = "••••••••••••••"; skInput.type = 'password'; btnToggle.innerText = '显示';
+            } else if (pendingAction === 'exportChat') {
+                // === 新增：密码验证通过后执行导出 ===
+                executeExport();
             }
             pendingAction = null;
         }
@@ -1905,14 +1909,30 @@
                                 });
                             }
                             // === 新增：解析并合并云端漫游的黑名单 ===
-                                                        if (data.blocklist && Array.isArray(data.blocklist)) {
-                                                            let oldSize = blocklist.size;
-                                                            data.blocklist.forEach(pk => blocklist.add(pk));
-                                                            // 如果云端带来了新的黑名单成员，落盘保存
-                                                            if (blocklist.size !== oldSize) {
-                                                                localStorage.setItem(`dage_blocklist_${pubKeyHex}`, JSON.stringify(Array.from(blocklist)));
-                                                            }
-                                                        }
+                              if (data.blocklist && Array.isArray(data.blocklist)) {
+                                  let oldSize = blocklist.size;
+                                  data.blocklist.forEach(pk => blocklist.add(pk));
+                                  // 如果云端带来了新的黑名单成员，落盘保存
+                                  if (blocklist.size !== oldSize) {
+                                      localStorage.setItem(`dage_blocklist_${pubKeyHex}`, JSON.stringify(Array.from(blocklist)));
+                                  }
+                              }
+
+                              if (data.relays && Array.isArray(data.relays)) {
+                                  let oldRelayCount = currentRelayUrls.length;
+                                  data.relays.forEach(url => {
+                                      if (url.startsWith('ws') && !currentRelayUrls.includes(url)) {
+                                          currentRelayUrls.push(url);
+                                      }
+                                  });
+                                  // 如果云端带来了新的 Relay 节点
+                                  if (currentRelayUrls.length !== oldRelayCount) {
+                                      localStorage.setItem(`dage_relay_${pubKeyHex}`, currentRelayUrls.join(','));
+                                      // 触发连接机制 (initRelayConnection 内部会跳过已连接的，只连接新增的)
+                                      initRelayConnection();
+                                  }
+                              }
+
                         }
                     } catch(e) { console.error("Kind 3 Decrypt Error:", e); }
                 }
@@ -2249,12 +2269,32 @@
                                 let isGroup = !!groups[pk];
                                 if (pk === pubKeyHex) return; // 暂不开放转发给自己备忘录
                                 let prof = isGroup ? groups[pk] : (profiles[pk] || { name: nt.nip19.npubEncode(pk).substring(0,10)+'...' });
-                                let name = isGroup ? (prof.type===1 ? `[共享群] ${prof.name}`:`[群聊] ${prof.name}`) : prof.name;
+                                // --- 转发弹窗名称与图标渲染逻辑 ---
+                                let isOfficial = pk === OFFICIAL_GROUP.id;
+                                let name = prof.name;
+                                let icon = '👤';
+                                let bgColor = 'bg-blue-500';
+
+                                if (isGroup) {
+                                    bgColor = 'bg-green-500';
+                                    if (prof.type === 1) {
+                                        name = `[共享群] ${prof.name}`;
+                                        icon = '⚡';
+                                        bgColor = 'bg-purple-500'; // 幽灵群使用紫色背景，保持一致性
+                                    } else if (isOfficial) {
+                                        name = `[测试频道] ${prof.name}`;
+                                        icon = '📢';
+                                    } else {
+                                        name = `[加密群] ${prof.name}`;
+                                        icon = '🛡️';
+                                    }
+                                }
 
                                 let btn = document.createElement('button');
                                 btn.className = "w-full flex items-center p-3 hover:bg-blue-50 active:bg-blue-100 rounded-lg transition border-b border-gray-50";
-                                btn.innerHTML = `<div class="w-10 h-10 rounded-full ${isGroup?'bg-green-500':'bg-blue-500'} text-white flex items-center justify-center font-bold mr-3">${isGroup?'📢':'👤'}</div>
+                                btn.innerHTML = `<div class="w-10 h-10 rounded-full ${bgColor} text-white flex items-center justify-center font-bold mr-3">${icon}</div>
                                                  <span class="text-sm font-medium text-gray-800">${escapeHTML(name)}</span>`;
+                                // ------------------------------------
 
                                 // 动态绑定点击事件：根据模式走不同的逻辑
                                 btn.onclick = () => {
@@ -2642,15 +2682,20 @@
                 let displayName = prof.name;
                 let avatarBadge = '';
                 if (pk === OFFICIAL_GROUP.id) displayName = "📡 " + displayName;
+
+                let isOfficial = pk === OFFICIAL_GROUP.id;
                 if (pk === pubKeyHex) {
                     displayName = `${prof.name || '我'} (备忘录 💾)`;
                 } else if (isGroup) {
                     if (prof.type === 1) {
                         displayName = `[共享群] ${prof.name}`;
                         avatarBadge = '⚡';
-                    } else {
-                        displayName = `[群聊] ${prof.name}`;
+                    } else if (isOfficial) {
+                        displayName = `[测试频道] ${prof.name}`;
                         avatarBadge = '📢';
+                    } else {
+                        displayName = `[加密群] ${prof.name}`;
+                        avatarBadge = '🛡️';
                     }
                 }
 
@@ -2667,7 +2712,8 @@
                 if (isGroup && prof.type === 1) {
                     avatarInner = `<div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-sm border border-purple-400">⚡</div>`;
                 } else if (isGroup && prof.type === 0) {
-                    avatarInner = `<div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-sm border border-green-400">📢</div>`;
+                  let icon = isOfficial ? '📢' : '🛡️';
+                  avatarInner = `<div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-sm border border-green-400">${icon}</div>`;
                 }
 
                 let avatarHtml = `
@@ -2754,7 +2800,7 @@
                     let avatarBox = document.getElementById('chat-avatar');
 
                     if (isGroup) {
-                        let badgeIcon = prof.type === 1 ? '⚡' : '📢';
+                        let badgeIcon = prof.type === 1 ? '⚡' : (currentChatPk === OFFICIAL_GROUP.id ? '📢' : '🛡️');
                         let bgColor = prof.type === 1 ? 'bg-purple-500' : 'bg-green-500';
                         avatarBox.innerHTML = `<div class="w-full h-full ${bgColor} rounded-full flex items-center justify-center text-white text-xl font-bold">${badgeIcon}</div>`;
                         avatarBox.classList.replace('bg-gray-400', 'bg-transparent');
@@ -3130,7 +3176,9 @@
             // 渲染动作按钮
             if (isGroup) {
                 badge.classList.remove('hidden');
-                badge.innerText = prof.type === 1 ? '共享群组 (匿名)' : '普通群组';
+                if (prof.type === 1) badge.innerText = '共享群组';
+                else if (currentChatPk === OFFICIAL_GROUP.id) badge.innerText = '测试公共频道';
+                else badge.innerText = '加密群组';
                 badge.classList.replace('bg-gray-100', 'bg-indigo-100');
                 badge.classList.replace('text-gray-500', 'text-indigo-600');
 
@@ -3575,6 +3623,12 @@
             closeMentionModal();
             let input = document.getElementById('msg-input');
             let val = input.value;
+
+            // 削掉用户手打的那个 @ (如果存在的话)
+            if (val.endsWith('@')) {
+                val = val.slice(0, -1);
+            }
+
             input.value = val + (val.endsWith(' ') || val === '' ? '' : ' ') + `@${name} `;
             input.focus();
             pendingMentions[name] = pk; // 存入待发送字典
@@ -3674,7 +3728,11 @@
                             await generateInviteLink(gid);
                             renderContacts();
                             selectContact(gid);
-                            initRelayConnection(); // 重新订阅
+
+                            // 发送实时追加订阅，无需刷新
+                            let appendReq = ["REQ", "sub-append-new-" + gid, { kinds: [42, 30078], "#g": [gid], limit: 50 }];
+                            if (isGhost) appendReq[2] = { kinds: [1059], "#p": [gid], limit: 50 };
+                            broadcastToRelays(JSON.stringify(appendReq));
                 }
 
                 async function generateInviteLink(gid) {
@@ -3752,9 +3810,16 @@
                         await syncBackupToCloud(); // <-- 触发云端同步
 
                         alert(`✅ 成功加入群聊：${groupName}`);
-                        initRelayConnection(); // 重新订阅
+
+                        // 发送实时追加订阅，无需刷新
+                        let appendReq = ["REQ", "sub-append-join-" + gid, { kinds: [42, 30078], "#g": [gid], limit: 50 }];
+                        if (gType === 1) appendReq[2] = { kinds: [1059], "#p": [gid], limit: 50 };
+                        broadcastToRelays(JSON.stringify(appendReq));
+
                         renderContacts();
                         selectContact(gid);
+
+
                     } catch (e) { alert("加入群聊失败: " + e.message); }
                 }
 
