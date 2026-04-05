@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.37</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.35</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -215,62 +215,63 @@
     </div>
 
     <!-- ================= 对方资料卡 弹窗 ================= -->
-        <div id="peer-profile-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[60] flex items-center justify-center p-4 transition-opacity" onclick="if(event.target===this) closePeerProfileModal()">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-transform scale-95 overflow-hidden max-h-[85vh]" id="peer-profile-content">
-                <!-- 头部背景 (固定不滚动) -->
-                <div class="h-24 bg-gradient-to-r from-blue-400 to-blue-600 relative shrink-0 z-10">
-                    <button onclick="closePeerProfileModal()" class="absolute top-3 right-3 text-white bg-black bg-opacity-20 hover:bg-opacity-40 rounded-full p-1.5 transition">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </div>
+      <div id="peer-profile-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[60] flex items-center justify-center p-4 transition-opacity" onclick="if(event.target===this) closePeerProfileModal()">
+          <!-- 重点修复：父容器加上 relative 保证绝对定位不会越界 -->
+          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-transform scale-95 overflow-hidden max-h-[85vh] relative" id="peer-profile-content">
+              <!-- 头部背景 (固定不滚动) -->
+              <div class="h-24 bg-gradient-to-r from-blue-400 to-blue-600 relative shrink-0 z-10">
+                  <button onclick="closePeerProfileModal()" class="absolute top-3 right-3 text-white bg-black bg-opacity-20 hover:bg-opacity-40 rounded-full p-1.5 transition">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+              </div>
 
-                <!-- 内容区 (支持滚动) -->
-                <div class="px-6 pb-6 relative pt-12 flex flex-col items-center flex-1 overflow-y-auto no-scrollbar bg-white">
-                    <!-- 头像浮动在两层之间 -->
-                    <div id="peer-modal-avatar" class="absolute -top-12 w-24 h-24 bg-white rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center text-gray-400 text-3xl font-bold z-20"></div>
+              <!-- 重点修复：头像浮动在整个容器两层之间，彻底脱离内容滚动区的裁剪限制 -->
+              <div id="peer-modal-avatar" class="absolute top-12 left-1/2 transform -translate-x-1/2 w-24 h-24 bg-white rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center text-gray-400 text-3xl font-bold z-20"></div>
 
-                    <h3 id="peer-modal-name" class="text-xl font-bold text-gray-800 mb-1 text-center w-full break-words">名字</h3>
-                    <span id="peer-modal-badge" class="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded mb-4 font-medium hidden">陌生人</span>
+              <!-- 内容区 (支持滚动) -->
+              <div class="px-6 pb-6 relative pt-14 flex flex-col items-center flex-1 overflow-y-auto no-scrollbar bg-white">
+                  <h3 id="peer-modal-name" class="text-xl font-bold text-gray-800 mb-1 text-center w-full break-words">名字</h3>
+                  <span id="peer-modal-badge" class="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded mb-4 font-medium hidden">陌生人</span>
 
-                    <div class="w-full bg-gray-50 rounded-lg p-3 border border-gray-100 mb-4 shrink-0">
-                        <label id="peer-modal-pubkey-label" class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Npub 公钥</label>
-                        <div class="flex items-center">
-                            <div id="peer-modal-pubkey" class="text-xs text-gray-600 font-mono truncate flex-1 select-all"></div>
-                            <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('ID 已复制！')" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1 bg-white rounded shadow-sm border border-gray-200 active:scale-95">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                            </button>
-                        </div>
-                    </div>
+                  <div class="w-full bg-gray-50 rounded-lg p-3 border border-gray-100 mb-4 shrink-0">
+                      <label id="peer-modal-pubkey-label" class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Npub 公钥</label>
+                      <div class="flex items-center">
+                          <div id="peer-modal-pubkey" class="text-xs text-gray-600 font-mono truncate flex-1 select-all"></div>
+                          <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('ID 已复制！')" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1 bg-white rounded shadow-sm border border-gray-200 active:scale-95">
+                              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                          </button>
+                      </div>
+                  </div>
 
-                    <!-- 新增：详细资料展示区块 -->
-                    <div id="peer-extra-info" class="w-full space-y-3 mb-5 hidden shrink-0">
-                        <div id="peer-modal-about-container" class="hidden">
-                            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">简介 (About)</label>
-                            <div id="peer-modal-about" class="text-gray-700 text-xs whitespace-pre-wrap break-words bg-gray-50 p-2.5 rounded border border-gray-100 leading-relaxed"></div>
-                        </div>
-                        <div id="peer-modal-website-container" class="hidden">
-                            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">网站 (Website)</label>
-                            <a href="#" id="peer-modal-website" target="_blank" class="text-blue-500 hover:text-blue-700 text-xs break-all block bg-blue-50 p-2 rounded border border-blue-100 underline"></a>
-                        </div>
-                        <div id="peer-modal-ln-container" class="hidden">
-                            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">闪电网络 (Lightning)</label>
-                            <div class="flex items-center bg-yellow-50 p-2 rounded border border-yellow-100">
-                                <span class="text-yellow-600 mr-2 text-sm">⚡</span>
-                                <div id="peer-modal-ln" class="text-gray-700 text-xs break-all font-mono flex-1"></div>
-                            </div>
-                        </div>
-                        <div id="peer-modal-relays-container" class="hidden">
-                            <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">公开节点 (Relays)</label>
-                            <div id="peer-modal-relays" class="text-gray-600 text-[11px] whitespace-pre-wrap break-words bg-gray-50 p-2 rounded border border-gray-100 font-mono leading-relaxed"></div>
-                        </div>
-                    </div>
+                  <!-- 详细资料展示区块 -->
+                  <div id="peer-extra-info" class="w-full space-y-3 mb-5 hidden shrink-0">
+                      <div id="peer-modal-about-container" class="hidden">
+                          <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">简介 (About)</label>
+                          <div id="peer-modal-about" class="text-gray-700 text-xs whitespace-pre-wrap break-words bg-gray-50 p-2.5 rounded border border-gray-100 leading-relaxed"></div>
+                      </div>
+                      <div id="peer-modal-website-container" class="hidden">
+                          <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">网站 (Website)</label>
+                          <a href="#" id="peer-modal-website" target="_blank" class="text-blue-500 hover:text-blue-700 text-xs break-all block bg-blue-50 p-2 rounded border border-blue-100 underline"></a>
+                      </div>
+                      <div id="peer-modal-ln-container" class="hidden">
+                          <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">闪电网络 (Lightning)</label>
+                          <div class="flex items-center bg-yellow-50 p-2 rounded border border-yellow-100">
+                              <span class="text-yellow-600 mr-2 text-sm">⚡</span>
+                              <div id="peer-modal-ln" class="text-gray-700 text-xs break-all font-mono flex-1"></div>
+                          </div>
+                      </div>
+                      <div id="peer-modal-relays-container" class="hidden">
+                          <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">公开节点 (Relays)</label>
+                          <div id="peer-modal-relays" class="text-gray-600 text-[11px] whitespace-pre-wrap break-words bg-gray-50 p-2 rounded border border-gray-100 font-mono leading-relaxed"></div>
+                      </div>
+                  </div>
 
-                    <div id="peer-action-btn-area" class="w-full shrink-0 border-t border-gray-100 pt-4">
-                        <!-- 动态渲染：添加好友 或 删除好友 按钮 -->
-                    </div>
-                </div>
-            </div>
-        </div>
+                  <div id="peer-action-btn-area" class="w-full shrink-0 border-t border-gray-100 pt-4">
+                      <!-- 动态渲染 -->
+                  </div>
+              </div>
+          </div>
+      </div>
 
     <!-- ================= 消息长按底部弹窗 ================= -->
     <div id="msg-action-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden z-50 flex flex-col justify-end md:justify-center md:items-center transition-opacity" onclick="closeMsgActionModal(event)">
@@ -519,8 +520,8 @@
                     <p class="text-xs text-gray-500 mb-4">复制下方邀请码发送给好友，对方在添加栏粘贴即可加入。</p>
                     <textarea id="invite-code-display" readonly rows="5" class="w-full border border-gray-300 rounded-lg p-3 text-xs text-gray-600 bg-gray-50 focus:outline-none resize-none break-all"></textarea>
                     <div class="mt-5 flex justify-end space-x-3">
-                        <button onclick="document.getElementById('invite-code-modal').classList.add('hidden')" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">关闭</button>
-                        <button onclick="copyText(document.getElementById('invite-code-display').value); alert('邀请码已复制！'); document.getElementById('invite-code-modal').classList.add('hidden');" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">复制邀请码</button>
+                        <button onclick="closeInviteCodeModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">关闭</button>
+                        <button onclick="copyText(document.getElementById('invite-code-display').value); alert('邀请码已复制！'); closeInviteCodeModal();" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">复制邀请码</button>
                     </div>
                 </div>
             </div>
@@ -586,7 +587,7 @@
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
             <div class="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
                 <h3 id="export-title" class="text-md font-bold text-gray-800 truncate">导出记录</h3>
-                <button onclick="document.getElementById('export-modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-800 p-1">
+                <button onclick="closeExportModal()" class="text-gray-500 hover:text-gray-800 p-1">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -675,31 +676,44 @@
         window.addEventListener('blur', () => { isBrowserActive = false; });
 
 
-        const ModalManager = {
-            stack:[],
-            // 凡是打开弹窗/侧滑聊天，调用此方法
-            push: function(modalId, closeFunc) {
-                this.stack.push({ id: modalId, close: closeFunc });
-                history.pushState({ modalId: modalId }, '', '#' + modalId);
-            },
-            // 凡是用户主动点击 UI 上的关闭按钮，调用此方法
-            pop: function(modalId) {
-                if (this.stack.length > 0 && this.stack[this.stack.length - 1].id === modalId) {
-                    this.stack.pop();
-                    history.back(); // 这一步会触发浏览器的后退，并自动消耗掉 URL 的 #hash
-                }
-            },
-            // 监听系统物理/手势返回键
-            handlePopState: function(e) {
-                if (this.stack.length > 0) {
-                    let topModal = this.stack.pop();
-                    // 传入 true，告诉 close 函数“这是系统退回触发的，别再去调用 history.back() 了”
-                    topModal.close(true);
-                }
-            }
-        };
+        // ================= 重构后的高可靠弹窗管理器 =================
+                const ModalManager = {
+                    stack:[],
+                    isManualPop: false, // 核心机制：区分是“代码主动关闭”还是“用户按了系统级返回键”
 
-        window.addEventListener('popstate', (e) => ModalManager.handlePopState(e));
+                    // 凡是打开弹窗/侧滑聊天，调用此方法
+                    push: function(modalId, closeFunc) {
+                        this.stack.push({ id: modalId, close: closeFunc });
+                        history.pushState({ modalId: modalId }, '', '#' + modalId);
+                    },
+
+                    // 凡是用户主动点击 UI 上的关闭按钮，调用此方法
+                    pop: function(modalId) {
+                        if (this.stack.length > 0 && this.stack[this.stack.length - 1].id === modalId) {
+                            this.isManualPop = true; // 声明：这是代码主动退出的
+                            this.stack.pop();
+                            history.back(); // 这一步会触发浏览器的后退，并自动消耗掉 URL 的 #hash
+                        }
+                    },
+
+                    // 监听系统物理/手势返回键
+                    handlePopState: function(e) {
+                        // 如果是由于代码里调用了 history.back() 触发的，直接无视它！防死锁！
+                        if (this.isManualPop) {
+                            this.isManualPop = false;
+                            return;
+                        }
+
+                        // 如果是用户真的滑动了手机边缘或按了物理返回键
+                        if (this.stack.length > 0) {
+                            let topModal = this.stack.pop();
+                            // 传入 true，告诉对应的 close 函数“这是系统退回触发的，别再去调用 ModalManager.pop 了”
+                            topModal.close(true);
+                        }
+                    }
+                };
+
+                window.addEventListener('popstate', (e) => ModalManager.handlePopState(e));
 
         function triggerBlinkTitle() {
             if (isBrowserActive) return;
@@ -1391,6 +1405,7 @@
             document.getElementById('verify-pwd').value = '';
             document.getElementById('pwd-verify-modal').classList.remove('hidden');
             setTimeout(() => document.getElementById('verify-pwd').focus(), 100);
+            ModalManager.push('pwdVerify', closePwdVerifyModal);
         }
 
         async function importAccount() {
@@ -1407,6 +1422,7 @@
                 document.getElementById('pwd-setup-desc').innerText = "私钥已识别。请设置一个密码，系统将使用该密码对私钥进行军事级加密后存入本地。";
                 document.getElementById('new-pwd').value = ''; document.getElementById('confirm-pwd').value = '';
                 document.getElementById('pwd-setup-modal').classList.remove('hidden');
+                ModalManager.push('pwdSetup', closePwdSetupModal);
             } catch (e) { alert("私钥无效格式！"); }
         }
 
@@ -1417,11 +1433,13 @@
             document.getElementById('pwd-setup-desc').innerText = "系统将生成新私钥。请设置密码保护私钥(至少6位)。密码仅存在本地，遗忘无法找回！";
             document.getElementById('new-pwd').value = ''; document.getElementById('confirm-pwd').value = '';
             document.getElementById('pwd-setup-modal').classList.remove('hidden');
+            ModalManager.push('pwdSetup', closePwdSetupModal);
         }
 
-        function closePwdSetupModal() {
+        function closePwdSetupModal(fromPopState = false) {
             document.getElementById('pwd-setup-modal').classList.add('hidden');
             pwdContext = null; tempImportSk = null;
+            if (fromPopState !== true) ModalManager.pop('pwdSetup');
         }
 
         async function submitPwdSetup() {
@@ -1449,11 +1467,11 @@
         }
 
         // ================= 密码验证分配 =================
-              function closePwdVerifyModal() {
-                  document.getElementById('pwd-verify-modal').classList.add('hidden');
-                  pwdContext = null;
-                  // 修复 Bug：此处绝不能添加 pendingAction = null，否则会截断密码验证后的正确回调！
-              }
+        function closePwdVerifyModal(fromPopState = false) {
+            document.getElementById('pwd-verify-modal').classList.add('hidden');
+            pwdContext = null;
+            if (fromPopState !== true) ModalManager.pop('pwdVerify');
+        }
 
               async function submitPwdVerify() {
                   let pwd = document.getElementById('verify-pwd').value;
@@ -1528,6 +1546,7 @@
             document.getElementById('verify-pwd').value = '';
             document.getElementById('pwd-verify-modal').classList.remove('hidden');
             setTimeout(() => document.getElementById('verify-pwd').focus(), 100);
+            ModalManager.push('pwdVerify', closePwdVerifyModal);
         }
 
         function executePendingKeyAction(realSk) {
@@ -2330,20 +2349,30 @@
             document.getElementById('btn-recall').style.display = isMe ? 'block' : 'none';
             document.getElementById('msg-action-modal').classList.remove('hidden');
             setTimeout(() => { document.getElementById('msg-action-content').classList.remove('translate-y-full'); }, 10);
+            ModalManager.push('msgAction', closeMsgActionModal);
         }
 
-        function closeMsgActionModal(e) {
-            if (e && e.target !== document.getElementById('msg-action-modal')) return;
+        function closeMsgActionModal(eOrFromPopState) {
+            // 点击遮罩层的保护判断
+            if (eOrFromPopState && typeof eOrFromPopState === 'object' && eOrFromPopState.target && eOrFromPopState.target !== document.getElementById('msg-action-modal')) return;
+            let isPopState = eOrFromPopState === true;
+
             document.getElementById('msg-action-content').classList.add('translate-y-full');
             setTimeout(() => { document.getElementById('msg-action-modal').classList.add('hidden'); }, 200);
+
+            if (!isPopState) ModalManager.pop('msgAction');
         }
 
         function openSelectCopyModal(text) {
             document.getElementById('select-copy-text').innerText = text;
             document.getElementById('select-copy-modal').classList.remove('hidden');
+            ModalManager.push('selectCopy', closeSelectCopyModal);
         }
 
-        function closeSelectCopyModal() { document.getElementById('select-copy-modal').classList.add('hidden'); }
+        function closeSelectCopyModal(fromPopState = false) {
+            document.getElementById('select-copy-modal').classList.add('hidden');
+            if (fromPopState !== true) ModalManager.pop('selectCopy');
+        }
 
         async function doAction(type) {
                     closeMsgActionModal();
@@ -2465,11 +2494,14 @@
                                 listDiv.appendChild(btn);
                             });
                             document.getElementById('forward-modal').classList.remove('hidden');
+                            ModalManager.push('forward', closeForwardModal);
                         }
 
-                        function closeForwardModal() {
-                            document.getElementById('forward-modal').classList.add('hidden');
-                        }
+
+                        function closeForwardModal(fromPopState = false) {
+                          document.getElementById('forward-modal').classList.add('hidden');
+                          if (fromPopState !== true) ModalManager.pop('forward');
+                      }
 
                         // 1. 合并转发逻辑
                         async function confirmMergeForward(targetPk) {
@@ -2661,6 +2693,7 @@
                             historyViewerStack = []; // 清空堆栈
                             pushHistoryView(encodedPayload);
                             document.getElementById('history-viewer-modal').classList.remove('hidden');
+                            ModalManager.push('historyViewer', closeHistoryViewer);
                         }
 
                         // 压入新的一层卡片数据
@@ -2688,9 +2721,10 @@
                             }
                         }
 
-                        function closeHistoryViewer() {
+                        function closeHistoryViewer(fromPopState = false) {
                             historyViewerStack = [];
                             document.getElementById('history-viewer-modal').classList.add('hidden');
+                            if (fromPopState !== true) ModalManager.pop('historyViewer');
                         }
 
                         // 专门用于在卡片内部提取可能存在的子卡片 (剥壳)
@@ -3551,6 +3585,12 @@
             document.getElementById('export-title').innerText = title;
             document.getElementById('export-target-desc').innerText = desc;
             document.getElementById('export-modal').classList.remove('hidden');
+            ModalManager.push('export', closeExportModal);
+        }
+
+        function closeExportModal(fromPopState = false) {
+            document.getElementById('export-modal').classList.add('hidden');
+            if (fromPopState !== true) ModalManager.pop('export');
         }
 
         function formatDateStr(ts) {
@@ -3793,10 +3833,12 @@
             });
 
             document.getElementById('mention-modal').classList.remove('hidden');
+            ModalManager.push('mention', closeMentionModal);
         }
 
-        function closeMentionModal() {
+        function closeMentionModal(fromPopState = false) {
             document.getElementById('mention-modal').classList.add('hidden');
+            if (fromPopState !== true) ModalManager.pop('mention');
         }
 
         function insertMention(name, pk) {
@@ -3819,10 +3861,12 @@
         function openBlocklistManager() {
             document.getElementById('blocklist-modal').classList.remove('hidden');
             renderBlocklist();
+            ModalManager.push('blocklist', closeBlocklistManager);
         }
 
-        function closeBlocklistManager() {
+        function closeBlocklistManager(fromPopState = false) {
             document.getElementById('blocklist-modal').classList.add('hidden');
+            if (fromPopState !== true) ModalManager.pop('blocklist');
         }
 
         function renderBlocklist() {
@@ -3878,11 +3922,24 @@
         }
 
         function openCreateGroupModal() {
-                    document.getElementById('new-group-name').value = '';
-                    document.getElementById('new-group-isghost').checked = false;
-                    document.getElementById('create-group-modal').classList.remove('hidden');
-                }
-                function closeCreateGroupModal() { document.getElementById('create-group-modal').classList.add('hidden'); }
+            document.getElementById('new-group-name').value = '';
+            document.getElementById('new-group-isghost').checked = false;
+            document.getElementById('create-group-modal').classList.remove('hidden');
+            ModalManager.push('createGroup', closeCreateGroupModal);
+        }
+
+
+        function closeCreateGroupModal(fromPopState = false) {
+            document.getElementById('create-group-modal').classList.add('hidden');
+            if (fromPopState !== true) ModalManager.pop('createGroup');
+        }
+
+        // 7. 独立邀请码关闭控制 (新增专属函数)
+        function closeInviteCodeModal(fromPopState = false) {
+            document.getElementById('invite-code-modal').classList.add('hidden');
+            if (fromPopState !== true) ModalManager.pop('inviteCode');
+        }
+
 
                 async function submitCreateGroup() {
                             const nameInput = document.getElementById('new-group-name').value.trim();
@@ -3956,6 +4013,7 @@
 
                     document.getElementById('invite-code-display').value = inviteLink;
                     document.getElementById('invite-code-modal').classList.remove('hidden');
+                    ModalManager.push('inviteCode', closeInviteCodeModal);
                 }
 
                 async function joinGroup(inviteStr) {
@@ -4057,12 +4115,17 @@
 
                     document.getElementById('member-action-modal').classList.remove('hidden');
                     setTimeout(() => { document.getElementById('member-action-content').classList.remove('translate-y-full'); }, 10);
+                    ModalManager.push('memberAction', closeMemberActionModal);
                 }
 
-                function closeMemberActionModal(e) {
-                    if (e && e.target !== document.getElementById('member-action-modal')) return;
+                function closeMemberActionModal(eOrFromPopState) {
+                    if (eOrFromPopState && typeof eOrFromPopState === 'object' && eOrFromPopState.target && eOrFromPopState.target !== document.getElementById('member-action-modal')) return;
+                    let isPopState = eOrFromPopState === true;
+
                     document.getElementById('member-action-content').classList.add('translate-y-full');
                     setTimeout(() => { document.getElementById('member-action-modal').classList.add('hidden'); }, 200);
+
+                    if (!isPopState) ModalManager.pop('memberAction');
                 }
                 async function addContact() {
                             let val = document.getElementById('new-contact-input').value.trim();
