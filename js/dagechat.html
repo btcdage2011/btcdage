@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.35</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.36</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -634,6 +634,7 @@
         let unreadCounts = {};
 
         let currentChatPk = null;
+        let peerPkToViewGlobal = null; // 核心修复：独立记录当前查看资料卡的对象，严禁污染 currentChatPk
 
         let hiddenMsgsSet = new Set();
         let isSelectMode = false;
@@ -1959,11 +1960,10 @@
                                 if (currentChatPk === ev.pubkey) updateChatHeader();
 
                                 // === 新增：如果当前正打开着这个人的资料卡，立刻进行热更新！ ===
-                                let peerModal = document.getElementById('peer-profile-modal');
-                                if (!peerModal.classList.contains('hidden') && currentChatPk === ev.pubkey) {
-                                    // 重新调用函数，用最新的 profiles[ev.pubkey] 渲染画面
-                                    showPeerProfileModal();
-                                }
+                                  let peerModal = document.getElementById('peer-profile-modal');
+                                  if (!peerModal.classList.contains('hidden') && peerPkToViewGlobal === ev.pubkey) {
+                                      showPeerProfileModal(peerPkToViewGlobal);
+                                  }
                             } catch(e) {}
                         }
 
@@ -2042,15 +2042,24 @@
 
             if (ev.kind === 5) {
                 let deletedIds = ev.tags.filter(t => t[0] === 'e').map(t => t[1]);
-                deletedIds.forEach(id => hiddenMsgsSet.add(id));
-                syncLocalEncryptedCache();
                 let isChanged = false;
-                for (let pk in messages) {
-                    let oldLen = messages[pk].length;
-                    messages[pk] = messages[pk].filter(m => !hiddenMsgsSet.has(m.id));
-                    if (messages[pk].length !== oldLen) isChanged = true;
+
+                deletedIds.forEach(id => {
+                    for (let pk in messages) {
+                        let targetMsg = messages[pk].find(m => m.id === id);
+                        // 核心对齐：仅当确认发送撤回指令的人，和这条消息的发送者是同一人时才处理
+                        if (targetMsg && targetMsg.sender === ev.pubkey) {
+                            targetMsg.text = "🔒 该消息已被撤回";
+                            delete targetMsg.image; // 彻底销毁关联的富文本和图片数据
+                            isChanged = true;
+                        }
+                    }
+                });
+
+                if (isChanged) {
+                    syncLocalEncryptedCache();
+                    triggerBatchUpdate(false);
                 }
-                if (isChanged) triggerBatchUpdate(false);
                 return;
             }
 
@@ -2295,12 +2304,28 @@
                         hiddenMsgsSet.add(id);
                         messages[currentChatPk] = messages[currentChatPk].filter(m => m.id !== id);
                         syncLocalEncryptedCache(); renderMessages(false); renderContacts();
-                    } else if (type === 'recall' && currentActionIsMe) {
-                        await publishEvent(5, "recall", [["e", id], ["p", currentChatPk]]);
-                        hiddenMsgsSet.add(id);
-                        messages[currentChatPk] = messages[currentChatPk].filter(m => m.id !== id);
-                        syncLocalEncryptedCache(); renderMessages(false); renderContacts();
-                    } else if (type === 'multi') {
+                      } else if (type === 'recall' && currentActionIsMe) {
+                          let m = messages[currentChatPk].find(x => x.id === id);
+                          if (!m) return;
+
+                          // 核心对齐：24 小时时间锁拦截
+                          let nowTs = Math.floor(Date.now() / 1000);
+                          if (nowTs - m.time > 86400) {
+                              alert("❌ 消息已超过 24 小时，无法撤回");
+                              return;
+                          }
+                          if (!confirm("确定要撤回这条消息吗？\n(撤回指令将广播全网，双方同步销毁)")) return;
+
+                          await publishEvent(5, "recall", [["e", id], ["p", currentChatPk]]);
+
+                          // 不再彻底删除，而是变为 UI 墓碑留痕
+                          m.text = "🔒 该消息已被撤回";
+                          delete m.image;
+
+                          syncLocalEncryptedCache();
+                          renderMessages(false);
+                          renderContacts();
+                      } else if (type === 'multi') {
                         isSelectMode = true; selectedMsgIds.clear(); selectedMsgIds.add(id);
                         document.getElementById('chat-input-area').classList.add('hidden');
                         document.getElementById('select-action-area').classList.remove('hidden');
@@ -3002,14 +3027,22 @@
 
                               // 气泡样式逻辑：如果是别人 @ 我的消息，把背景变成醒目的浅红色
                               let bubbleStyleClass = isMe
-                                  ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-600'
-                                  : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100';
+                                    ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-600'
+                                    : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100';
 
-                              if (isTargetMe) {
-                                  bubbleStyleClass = 'bg-red-50 text-red-900 rounded-tl-sm border border-red-300 shadow-md'; // 被 @ 时的专属骚气红色气泡
-                              }
+                                if (isTargetMe) {
+                                    bubbleStyleClass = 'bg-red-50 text-red-900 rounded-tl-sm border border-red-300 shadow-md'; // 被 @ 时的专属骚气红色气泡
+                                }
 
-                              let bubbleHtml = `
+                                // 核心对齐：识别并渲染墓碑样式
+                                let isTombstone = (m.text === "🔒 该消息已被撤回");
+                                if (isTombstone) {
+                                    contentHtml = `<span class="italic ${isMe ? 'text-blue-100' : 'text-gray-400'}">🔒 该消息已被撤回</span>`;
+                                    bubbleStyleClass = isMe ? 'bg-blue-400 text-white rounded-tr-sm border border-blue-400 opacity-80' : 'bg-gray-100 text-gray-500 rounded-tl-sm border border-gray-200 shadow-none';
+                                    quoteHtml = ''; // 撤回的消息强行隐藏引述层
+                                }
+
+                                let bubbleHtml = `
                                   <div class="flex flex-col flex-1 ${isMe ? 'items-end' : 'items-start'} no-select"
                                        ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})"
                                        ontouchend="handleTouchEnd()" ontouchmove="handleTouchMove()" ontouchcancel="handleTouchMove()"
@@ -3184,198 +3217,187 @@
                 }
             }
         }
+
         // ================= 对方资料卡与加好友 =================
-        function showPeerProfileModal(peerPkToView = currentChatPk) {
-            if(!currentChatPk) return;
+                function showPeerProfileModal(peerPkToView = currentChatPk) {
+                    let targetPk = peerPkToView;
+                    if(!targetPk) return;
+                    peerPkToViewGlobal = targetPk; // 核心：独立记录
 
-            let isGroup = !!groups[currentChatPk];
-            let prof = isGroup ? groups[currentChatPk] : (profiles[currentChatPk] || { name: '未知用户' });
-            let isStranger = !isGroup && !contacts.includes(currentChatPk) && currentChatPk !== pubKeyHex;
+                    let isGroup = !!groups[targetPk];
+                    let prof = isGroup ? groups[targetPk] : (profiles[targetPk] || { name: '未知用户' });
+                    let isStranger = !isGroup && !contacts.includes(targetPk) && targetPk !== pubKeyHex;
 
-            let displayName = prof.name;
-            let displayId = isGroup ? "群组 ID / 公钥" : "Npub 公钥";
-            let displayPubkeyText = currentChatPk;
+                    let displayName = prof.name;
+                    let displayId = isGroup ? "群组 ID / 公钥" : "Npub 公钥";
+                    let displayPubkeyText = targetPk;
 
-            if (currentChatPk === pubKeyHex) {
-                displayName = `${prof.name || '我'} (备忘录 💾)`;
-            } else if (!isGroup) {
-                displayPubkeyText = nt.nip19.npubEncode(currentChatPk);
-            }
+                    if (targetPk === pubKeyHex) {
+                        displayName = `${prof.name || '我'} (备忘录 💾)`;
+                    } else if (!isGroup) {
+                        displayPubkeyText = nt.nip19.npubEncode(targetPk);
+                    }
 
-            document.getElementById('peer-modal-name').innerText = displayName;
-            document.getElementById('peer-modal-pubkey-label').innerText = displayId;
-            document.getElementById('peer-modal-pubkey').innerText = displayPubkeyText;
+                    document.getElementById('peer-modal-name').innerText = displayName;
+                    document.getElementById('peer-modal-pubkey-label').innerText = displayId;
+                    document.getElementById('peer-modal-pubkey').innerText = displayPubkeyText;
 
+                    if (!isGroup) {
+                        broadcastToRelays(JSON.stringify(["REQ", "fetch-live-profile-" + Date.now(), { kinds: [0], authors: [targetPk] }]));
+                    }
 
-            // === 新增：每次打开资料卡，强制去网络拉取一下最新的 Kind 0，防止缓存不全 ===
-                if (!isGroup) {
-                    broadcastToRelays(JSON.stringify(["REQ", "fetch-live-profile-" + Date.now(), { kinds: [0], authors: [currentChatPk] }]));
+                    let avatarBox = document.getElementById('peer-modal-avatar');
+                    avatarBox.classList.replace('bg-white', 'bg-transparent');
+                    avatarBox.classList.replace('bg-transparent', 'bg-white');
+
+                    if (isGroup) {
+                        let badgeIcon = prof.type === 1 ? '⚡' : (targetPk === OFFICIAL_GROUP.id ? '📢' : '🛡️');
+                        let bgColor = prof.type === 1 ? 'bg-purple-500' : 'bg-green-500';
+                        avatarBox.innerHTML = `<div class="w-full h-full ${bgColor} flex items-center justify-center text-white text-4xl font-bold shadow-inner">${badgeIcon}</div>`;
+                    } else if(prof.picture) {
+                        let picUrl = formatAvatarUrl(prof.picture);
+                        avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                        avatarBox.classList.replace('bg-white', 'bg-transparent');
+                    } else {
+                        avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
+                    }
+
+                    let extraContainer = document.getElementById('peer-extra-info');
+                    if (isGroup || targetPk === pubKeyHex) {
+                        extraContainer.classList.add('hidden');
+                    } else {
+                        let hasExtra = false;
+                        let aboutBox = document.getElementById('peer-modal-about-container');
+                        if (prof.about) {
+                            document.getElementById('peer-modal-about').innerText = prof.about;
+                            aboutBox.classList.remove('hidden'); hasExtra = true;
+                        } else aboutBox.classList.add('hidden');
+
+                        let webBox = document.getElementById('peer-modal-website-container');
+                        if (prof.website) {
+                            let webEl = document.getElementById('peer-modal-website');
+                            webEl.innerText = prof.website;
+                            webEl.href = prof.website.startsWith('http') ? prof.website : 'https://' + prof.website;
+                            webBox.classList.remove('hidden'); hasExtra = true;
+                        } else webBox.classList.add('hidden');
+
+                        let lnBox = document.getElementById('peer-modal-ln-container');
+                        let lnVal = prof.lud16 || prof.ln;
+                        if (lnVal) {
+                            document.getElementById('peer-modal-ln').innerText = lnVal;
+                            lnBox.classList.remove('hidden'); hasExtra = true;
+                        } else lnBox.classList.add('hidden');
+
+                        let relaysBox = document.getElementById('peer-modal-relays-container');
+                        if (prof.relays) {
+                            document.getElementById('peer-modal-relays').innerText = prof.relays;
+                            relaysBox.classList.remove('hidden'); hasExtra = true;
+                        } else relaysBox.classList.add('hidden');
+
+                        if (hasExtra) extraContainer.classList.remove('hidden');
+                        else extraContainer.classList.add('hidden');
+                    }
+
+                    let badge = document.getElementById('peer-modal-badge');
+                    let actionArea = document.getElementById('peer-action-btn-area');
+
+                    if (isGroup) {
+                        badge.classList.remove('hidden');
+                        if (prof.type === 1) badge.innerText = '共享群组';
+                        else if (targetPk === OFFICIAL_GROUP.id) badge.innerText = '测试公共频道';
+                        else badge.innerText = '加密群组';
+                        badge.classList.replace('bg-gray-100', 'bg-indigo-100');
+                        badge.classList.replace('text-gray-500', 'text-indigo-600');
+
+                        actionArea.innerHTML = `
+                            <button onclick="generateInviteLink('${targetPk}')" class="w-full bg-blue-50 text-blue-600 border border-blue-100 py-3 rounded-xl hover:bg-blue-100 transition shadow-sm font-bold active:scale-95 text-sm flex items-center justify-center mb-3">🎫 生成/查看邀请码</button>
+                            <button onclick="exitGroupFromModal('${targetPk}')" class="w-full bg-white text-red-500 py-3 rounded-xl hover:bg-red-50 transition shadow-sm font-bold border border-red-200 active:scale-95 text-sm flex items-center justify-center">👋 退出群聊 (清除数据)</button>
+                        `;
+                    } else if (targetPk === pubKeyHex) {
+                        badge.classList.remove('hidden');
+                        badge.innerText = '备忘录';
+                        badge.classList.replace('bg-gray-100', 'bg-blue-100');
+                        badge.classList.replace('text-gray-500', 'text-blue-600');
+                        actionArea.innerHTML = `<div class="text-center text-gray-400 text-xs py-3 font-medium">这是您自己的账户，可作为文件传输助手或备忘录使用。</div>`;
+                    } else if(isStranger) {
+                        badge.classList.remove('hidden');
+                        badge.innerText = '陌生人';
+                        badge.classList.replace('bg-blue-100', 'bg-gray-100');
+                        badge.classList.replace('text-blue-600', 'text-gray-500');
+
+                        let isBlocked = blocklist.has(targetPk);
+                        let blockBtn = isBlocked
+                            ? `<button onclick="toggleBlockUser('${targetPk}', false)" class="w-full mt-3 bg-white text-green-600 py-3 rounded-xl hover:bg-green-50 transition border border-green-200 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
+                            : `<button onclick="toggleBlockUser('${targetPk}', true)" class="w-full mt-3 bg-white text-gray-500 py-3 rounded-xl hover:bg-gray-50 transition border border-gray-300 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
+
+                        actionArea.innerHTML = `
+                            <button onclick="addContactFromModal('${targetPk}')" class="w-full bg-green-500 text-white py-3 rounded-xl hover:bg-green-600 transition shadow font-bold active:scale-95 text-sm flex items-center justify-center">添加为好友</button>
+                            ${blockBtn}
+                        `;
+                    } else {
+                        badge.classList.add('hidden');
+                        let isBlocked = blocklist.has(targetPk);
+                        let blockBtn = isBlocked
+                            ? `<button onclick="toggleBlockUser('${targetPk}', false)" class="w-full mt-3 bg-white text-green-600 py-3 rounded-xl hover:bg-green-50 transition border border-green-200 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
+                            : `<button onclick="toggleBlockUser('${targetPk}', true)" class="w-full mt-3 bg-white text-gray-500 py-3 rounded-xl hover:bg-gray-50 transition border border-gray-300 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
+
+                        actionArea.innerHTML = `
+                            <button onclick="removeContactFromModal('${targetPk}')" class="w-full bg-red-50 text-red-600 py-3 rounded-xl hover:bg-red-100 transition shadow-sm font-bold border border-red-200 active:scale-95 text-sm flex items-center justify-center">彻底删除好友</button>
+                            ${blockBtn}
+                        `;
+                    }
+
+                    document.getElementById('peer-profile-modal').classList.remove('hidden');
+                    document.getElementById('peer-profile-content').children[1].scrollTop = 0;
+                    setTimeout(() => document.getElementById('peer-profile-content').classList.remove('scale-95'), 10);
                 }
 
-            // 处理头像
-            let avatarBox = document.getElementById('peer-modal-avatar');
-            avatarBox.classList.replace('bg-white', 'bg-transparent');
-            avatarBox.classList.replace('bg-transparent', 'bg-white');
-
-            if (isGroup) {
-                let badgeIcon = prof.type === 1 ? '⚡' : '📢';
-                let bgColor = prof.type === 1 ? 'bg-purple-500' : 'bg-green-500';
-                avatarBox.innerHTML = `<div class="w-full h-full ${bgColor} flex items-center justify-center text-white text-4xl font-bold shadow-inner">${badgeIcon}</div>`;
-            } else if(prof.picture) {
-                let picUrl = formatAvatarUrl(prof.picture);
-                avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
-                avatarBox.classList.replace('bg-white', 'bg-transparent');
-            } else {
-                avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
-            }
-
-            // ================= 新增：处理完整资料的展示 =================
-            let extraContainer = document.getElementById('peer-extra-info');
-            if (isGroup || currentChatPk === pubKeyHex) {
-                // 群组和备忘录不显示这部分资料
-                extraContainer.classList.add('hidden');
-            } else {
-                let hasExtra = false;
-
-                // 简介 (About)
-                let aboutBox = document.getElementById('peer-modal-about-container');
-                if (prof.about) {
-                    document.getElementById('peer-modal-about').innerText = prof.about;
-                    aboutBox.classList.remove('hidden');
-                    hasExtra = true;
-                } else aboutBox.classList.add('hidden');
-
-                // 网站 (Website)
-                let webBox = document.getElementById('peer-modal-website-container');
-                if (prof.website) {
-                    let webEl = document.getElementById('peer-modal-website');
-                    webEl.innerText = prof.website;
-                    webEl.href = prof.website.startsWith('http') ? prof.website : 'https://' + prof.website;
-                    webBox.classList.remove('hidden');
-                    hasExtra = true;
-                } else webBox.classList.add('hidden');
-
-                // 闪电网络 (Lightning)
-                let lnBox = document.getElementById('peer-modal-ln-container');
-                let lnVal = prof.lud16 || prof.ln;
-                if (lnVal) {
-                    document.getElementById('peer-modal-ln').innerText = lnVal;
-                    lnBox.classList.remove('hidden');
-                    hasExtra = true;
-                } else lnBox.classList.add('hidden');
-
-                // 公开节点 (Relays)
-                let relaysBox = document.getElementById('peer-modal-relays-container');
-                if (prof.relays) {
-                    document.getElementById('peer-modal-relays').innerText = prof.relays;
-                    relaysBox.classList.remove('hidden');
-                    hasExtra = true;
-                } else relaysBox.classList.add('hidden');
-
-                if (hasExtra) {
-                    extraContainer.classList.remove('hidden');
-                } else {
-                    extraContainer.classList.add('hidden');
+                function exitGroupFromModal(gid) {
+                    if (!confirm(`确定要退出群聊【${groups[gid].name}】吗？\n退出后将清除本地数据，重新加入需要新的邀请码。`)) return;
+                    if (gid === OFFICIAL_GROUP.id) localStorage.setItem(`dage_exited_official_${pubKeyHex}`, '1');
+                    delete groups[gid]; messages[gid] =[]; delete unreadCounts[gid];
+                    syncLocalEncryptedCache(); syncBackupToCloud();
+                    renderContacts(); closePeerProfileModal(); closeChat({stopPropagation: () => {}});
                 }
-            }
-            // ============================================================
 
-            let badge = document.getElementById('peer-modal-badge');
-            let actionArea = document.getElementById('peer-action-btn-area');
-
-            // 渲染动作按钮
-            if (isGroup) {
-                badge.classList.remove('hidden');
-                if (prof.type === 1) badge.innerText = '共享群组';
-                else if (currentChatPk === OFFICIAL_GROUP.id) badge.innerText = '测试公共频道';
-                else badge.innerText = '加密群组';
-                badge.classList.replace('bg-gray-100', 'bg-indigo-100');
-                badge.classList.replace('text-gray-500', 'text-indigo-600');
-
-                actionArea.innerHTML = `
-                    <button onclick="generateInviteLink('${currentChatPk}')" class="w-full bg-blue-50 text-blue-600 border border-blue-100 py-3 rounded-xl hover:bg-blue-100 transition shadow-sm font-bold active:scale-95 text-sm flex items-center justify-center mb-3">🎫 生成/查看邀请码</button>
-                    <button onclick="exitGroupFromModal('${currentChatPk}')" class="w-full bg-white text-red-500 py-3 rounded-xl hover:bg-red-50 transition shadow-sm font-bold border border-red-200 active:scale-95 text-sm flex items-center justify-center">👋 退出群聊 (清除数据)</button>
-                `;
-            } else if (currentChatPk === pubKeyHex) {
-                badge.classList.remove('hidden');
-                badge.innerText = '备忘录';
-                badge.classList.replace('bg-gray-100', 'bg-blue-100');
-                badge.classList.replace('text-gray-500', 'text-blue-600');
-                actionArea.innerHTML = `<div class="text-center text-gray-400 text-xs py-3 font-medium">这是您自己的账户，可作为文件传输助手或备忘录使用。</div>`;
-            } else if(isStranger) {
-                badge.classList.remove('hidden');
-                badge.innerText = '陌生人';
-                badge.classList.replace('bg-blue-100', 'bg-gray-100');
-                badge.classList.replace('text-blue-600', 'text-gray-500');
-
-                let isBlocked = blocklist.has(currentChatPk);
-                let blockBtn = isBlocked
-                    ? `<button onclick="toggleBlockUser('${currentChatPk}', false)" class="w-full mt-3 bg-white text-green-600 py-3 rounded-xl hover:bg-green-50 transition border border-green-200 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
-                    : `<button onclick="toggleBlockUser('${currentChatPk}', true)" class="w-full mt-3 bg-white text-gray-500 py-3 rounded-xl hover:bg-gray-50 transition border border-gray-300 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
-
-                actionArea.innerHTML = `
-                    <button onclick="addContactFromModal('${currentChatPk}')" class="w-full bg-green-500 text-white py-3 rounded-xl hover:bg-green-600 transition shadow font-bold active:scale-95 text-sm flex items-center justify-center">添加为好友</button>
-                    ${blockBtn}
-                `;
-            } else {
-                badge.classList.add('hidden');
-
-                let isBlocked = blocklist.has(currentChatPk);
-                let blockBtn = isBlocked
-                    ? `<button onclick="toggleBlockUser('${currentChatPk}', false)" class="w-full mt-3 bg-white text-green-600 py-3 rounded-xl hover:bg-green-50 transition border border-green-200 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
-                    : `<button onclick="toggleBlockUser('${currentChatPk}', true)" class="w-full mt-3 bg-white text-gray-500 py-3 rounded-xl hover:bg-gray-50 transition border border-gray-300 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
-
-                actionArea.innerHTML = `
-                    <button onclick="removeContactFromModal('${currentChatPk}')" class="w-full bg-red-50 text-red-600 py-3 rounded-xl hover:bg-red-100 transition shadow-sm font-bold border border-red-200 active:scale-95 text-sm flex items-center justify-center">彻底删除好友</button>
-                    ${blockBtn}
-                `;
-            }
-
-            document.getElementById('peer-profile-modal').classList.remove('hidden');
-            // 强制先重置内部滚动条，保证每次打开都是顶部
-            document.getElementById('peer-profile-content').children[1].scrollTop = 0;
-            setTimeout(() => document.getElementById('peer-profile-content').classList.remove('scale-95'), 10);
-        }
-
-        function exitGroupFromModal(gid) {
-            if (!confirm(`确定要退出群聊【${groups[gid].name}】吗？\n退出后将清除本地数据，重新加入需要新的邀请码。`)) return;
-            if (gid === OFFICIAL_GROUP.id) {
-                    localStorage.setItem(`dage_exited_official_${pubKeyHex}`, '1');
+                function closePeerProfileModal() {
+                    peerPkToViewGlobal = null;
+                    document.getElementById('peer-profile-content').classList.add('scale-95');
+                    setTimeout(() => document.getElementById('peer-profile-modal').classList.add('hidden'), 200);
                 }
-            delete groups[gid];
-            messages[gid] =[];
-            delete unreadCounts[gid];
-            syncLocalEncryptedCache();
 
-            syncBackupToCloud(); // <-- 触发云端同步 (无 await 异步抛出)
+                async function addContactFromModal(pk) {
+                    if(contacts.includes(pk)) return;
+                    contacts.push(pk);
+                    syncLocalEncryptedCache(); // 核心修复：本地落盘防丢失
+                    await syncBackupToCloud();
+                    renderContacts();
+                    closePeerProfileModal();
 
-            renderContacts();
-            closePeerProfileModal();
-            closeChat({stopPropagation: () => {}});
-            alert("已退出群聊！");
-        }
+                    // 核心对齐：添加后打招呼跳转
+                    let msgs = messages[pk] ||[];
+                    if (msgs.length === 0) {
+                        selectContact(pk);
+                        setTimeout(async () => {
+                            let inputEl = document.getElementById('msg-input');
+                            if (inputEl) {
+                                inputEl.value = "👋 我已将你添加为联系人，现在我们可以开始聊天了。";
+                                await sendMessage();
+                            }
+                        }, 500);
+                    } else {
+                        if (confirm("已成功添加为好友！是否立刻发起私聊？")) selectContact(pk);
+                    }
+                }
 
-        function closePeerProfileModal() {
-            document.getElementById('peer-profile-content').classList.add('scale-95');
-            setTimeout(() => document.getElementById('peer-profile-modal').classList.add('hidden'), 200);
-        }
-
-        async function addContactFromModal(pk) {
-            if(contacts.includes(pk)) return;
-            contacts.push(pk);
-            await syncBackupToCloud(); // 核心修复：只保留这一个即可
-            renderContacts();
-            closePeerProfileModal();
-            alert("已成功添加为好友！");
-        }
-
-        async function removeContactFromModal(pk) {
-            if (!confirm("确定要删除此好友吗？\n删除后对方将被标记为[陌生人]，但历史聊天记录会保留。")) return;
-            contacts = contacts.filter(c => c !== pk);
-            await syncBackupToCloud(); // 核心修复：只保留这一个即可
-            renderContacts();
-            closePeerProfileModal();
-        }
+                async function removeContactFromModal(pk) {
+                    if (!confirm("确定要删除此好友吗？\n删除后对方将被标记为[陌生人]，但历史聊天记录会保留。")) return;
+                    contacts = contacts.filter(c => c !== pk);
+                    syncLocalEncryptedCache(); // 核心修复：本地落盘防丢失
+                    await syncBackupToCloud();
+                    renderContacts();
+                    closePeerProfileModal();
+                }
 
         // ================= 个人资料业务 (支持全字段) =================
         function showProfileModal() {
@@ -3800,8 +3822,8 @@
             if (currentChatPk) renderMessages(false);
 
             // 如果对方资料卡开着，自动刷新一下按钮状态
-            if (!document.getElementById('peer-profile-modal').classList.contains('hidden')) {
-                showPeerProfileModal();
+            if (!document.getElementById('peer-profile-modal').classList.contains('hidden') && peerPkToViewGlobal) {
+                showPeerProfileModal(peerPkToViewGlobal);
             }
 
             if(isBlock) alert("🚫 已屏蔽该用户，并同步至云端");
@@ -3839,10 +3861,20 @@
                             renderContacts();
                             selectContact(gid);
 
-                            // 发送实时追加订阅，无需刷新
-                            let appendReq = ["REQ", "sub-append-new-" + gid, { kinds: [42, 30078], "#g": [gid], limit: 50 }];
+                            let appendReq =["REQ", "sub-append-new-" + gid, { kinds: [42, 30078], "#g": [gid], limit: 50 }];
                             if (isGhost) appendReq[2] = { kinds: [1059], "#p": [gid], limit: 50 };
                             broadcastToRelays(JSON.stringify(appendReq));
+
+                            // 核心对齐：打招呼机制 (共享密钥群禁发)
+                            if (!isGhost) {
+                                setTimeout(async () => {
+                                    let inputEl = document.getElementById('msg-input');
+                                    if(inputEl) {
+                                        inputEl.value = "👋 群组创建成功，开始聊天吧！";
+                                        await sendMessage();
+                                    }
+                                }, 500);
+                            }
                 }
 
                 async function generateInviteLink(gid) {
@@ -3922,14 +3954,23 @@
                         alert(`✅ 成功加入群聊：${groupName}`);
 
                         // 发送实时追加订阅，无需刷新
-                        let appendReq = ["REQ", "sub-append-join-" + gid, { kinds: [42, 30078], "#g": [gid], limit: 50 }];
+                        let appendReq =["REQ", "sub-append-join-" + gid, { kinds: [42, 30078], "#g":[gid], limit: 50 }];
                         if (gType === 1) appendReq[2] = { kinds: [1059], "#p": [gid], limit: 50 };
                         broadcastToRelays(JSON.stringify(appendReq));
 
                         renderContacts();
                         selectContact(gid);
 
-
+                        // 核心对齐：自动打招呼 (普通群，且排除官方测试频道)
+                        if (gType === 0 && gid !== OFFICIAL_GROUP.id) {
+                            setTimeout(async () => {
+                                let inputEl = document.getElementById('msg-input');
+                                if(inputEl) {
+                                    inputEl.value = "👋 我加入了群聊";
+                                    await sendMessage();
+                                }
+                            }, 500);
+                        }
                     } catch (e) { alert("加入群聊失败: " + e.message); }
                 }
 
@@ -3958,9 +3999,12 @@
                     // 绑定查看资料事件
                     document.getElementById('btn-member-profile').onclick = () => {
                         closeMemberActionModal();
-                        // 复用现成的查看资料函数（传入对应的公钥）
-                        currentChatPk = pk; // 临时将当前聊天对象设为他，利用现有函数机制渲染
-                        showPeerProfileModal();
+                        // 核心修复：绝对不碰 currentChatPk，同时缓存昵称防丢失
+                        if (!profiles[pk]) {
+                            profiles[pk] = { name: name };
+                            syncLocalEncryptedCache();
+                        }
+                        showPeerProfileModal(pk);
                     };
 
                     document.getElementById('member-action-modal').classList.remove('hidden');
@@ -3984,14 +4028,31 @@
                             }
 
                             try {
-                                let pkToAdd = val.startsWith('npub') ? nt.nip19.decode(val).data : val;
-                                if (pkToAdd === pubKeyHex || contacts.includes(pkToAdd)) return alert("无效操作或已存在");
-                                contacts.push(pkToAdd);
-                                document.getElementById('new-contact-input').value = '';
-                                await syncBackupToCloud(); // 核心修复：统一加密上传，防止群组丢失
-                                renderContacts();
-                                alert("已添加为好友！");
-                            } catch (e) { alert("公钥格式错误"); }
+                              let pkToAdd = val.startsWith('npub') ? nt.nip19.decode(val).data : val;
+                              if (pkToAdd === pubKeyHex || contacts.includes(pkToAdd)) return alert("无效操作或已存在");
+                              contacts.push(pkToAdd);
+                              document.getElementById('new-contact-input').value = '';
+
+                              syncLocalEncryptedCache(); // 核心修复：本地落盘防刷新丢失
+                              await syncBackupToCloud();
+                              renderContacts();
+
+                              // 核心对齐：自动打招呼并跳转
+                              let msgs = messages[pkToAdd] ||[];
+                              if (msgs.length === 0) {
+                                  selectContact(pkToAdd);
+                                  setTimeout(async () => {
+                                      let inputEl = document.getElementById('msg-input');
+                                      if (inputEl) {
+                                          inputEl.value = "👋 我已将你添加为联系人，现在我们可以开始聊天了。";
+                                          await sendMessage();
+                                      }
+                                  }, 500);
+                              } else {
+                                  alert("已添加为好友！");
+                                  selectContact(pkToAdd);
+                              }
+                          } catch (e) { alert("公钥格式错误"); }
                         }
     </script>
 </body>
