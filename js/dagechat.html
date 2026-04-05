@@ -2416,68 +2416,89 @@
         }
 
         function _processDecryptedMessage(peerPk, msgId, senderPk, decryptedText, timestamp, encType, replyId = null) {
-                    if (!messages[peerPk]) messages[peerPk] = [];
-                    if (!messages[peerPk].find(m => m.id === msgId)) {
-                        let isNewRealTimeMsg = true;
-                        if (messages[peerPk].length > 0) {
-                            let lastMsgTime = messages[peerPk][messages[peerPk].length - 1].time;
-                            if (timestamp < lastMsgTime) isNewRealTimeMsg = false;
-                        }
+            if (!messages[peerPk]) messages[peerPk] = [];
 
-                        // === 核心解析：判断是否 @ 了我 ===
-                                                let isAtMe = false;
-                                                let myName = profiles[pubKeyHex]?.name || "我";
-                                                if (groups[peerPk] && senderPk !== pubKeyHex) { // 如果是群消息且不是我发的
-                                                    try {
-                                                        let j = JSON.parse(decryptedText);
-                                                        if (j.at && Array.isArray(j.at)) {
-                                                            if (j.at.includes(pubKeyHex) || j.at.includes('ALL')) isAtMe = true;
-                                                        }
-                                                        // 文本兜底检测
-                                                        if (j.text && j.text.includes(`@${myName}`)) isAtMe = true;
-                                                    } catch(e){}
-                                                }
-
-                                                // 如果被 @ 了，增加计数，并触发标题闪烁
-                                                if (isAtMe) {
-                                                    mentionCounts[peerPk] = (mentionCounts[peerPk] || 0) + 1;
-                                                    triggerBlinkTitle();
-                                                }
-
-                                            // === 新增：如果不是自己的消息，且浏览器在后台，则弹出原生系统通知 ===
-                                                if (!isMe && !isBrowserActive) {
-                                                    let nSender = profiles[senderPk]?.name || "用户";
-                                                    if (groups[peerPk] && groups[peerPk].type === 1) nSender = "Anon";
-                                                    let nContext = groups[peerPk] ? " (" + groups[peerPk].name + ")" : "";
-                                                    let notifyTitle = isAtMe ? "【有人@你】 DageChat" : "新消息" + nContext;
-                                                    let safePreview = String(decryptedText).substring(0, 30);
-                                                    if (safePreview.startsWith('{')) safePreview = "[卡片/图片]";
-                                                    showSystemNotification(notifyTitle, nSender + ": " + safePreview);
-                                                }
-                                                // 修改 push，把 isAtMe 存进去
-                                                messages[peerPk].push({
-                                                    id: msgId, sender: senderPk, text: decryptedText,
-                                                    time: timestamp, enc_type: encType, reply_to_id: replyId,
-                                                    isAtMe: isAtMe // <--- 存入
-                                                });
-
-                        messages[peerPk].sort((a, b) => a.time - b.time);
-
-                        if (isNewRealTimeMsg && peerPk !== currentChatPk && senderPk !== pubKeyHex) {
-                            unreadCounts[peerPk] = (unreadCounts[peerPk] || 0) + 1;
-                        }
-
-                        if (!profiles[senderPk] && senderPk !== pubKeyHex) {
-                            broadcastToRelays(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), { kinds: [0], authors: [senderPk] }]));
-                        }
-
-                        // 核心优化：不再逐条同步渲染，丢给批量引擎去处理
-                        let shouldScroll = (currentChatPk === peerPk) && isNewRealTimeMsg;
-                        triggerBatchUpdate(shouldScroll);
-                    }
+            if (!messages[peerPk].find(function(m) { return m.id === msgId; })) {
+                let isNewRealTimeMsg = true;
+                if (messages[peerPk].length > 0) {
+                    let lastMsgTime = messages[peerPk][messages[peerPk].length - 1].time;
+                    if (timestamp < lastMsgTime) isNewRealTimeMsg = false;
                 }
 
-        // ================= 前端发送图片处理 (Canvas 压缩引擎) =================
+                // 核心解析：判断是否 @ 了我
+                let isAtMe = false;
+                let myName = (profiles[pubKeyHex] && profiles[pubKeyHex].name) ? profiles[pubKeyHex].name : "我";
+
+                if (groups[peerPk] && senderPk !== pubKeyHex) {
+                    try {
+                        let j = JSON.parse(decryptedText);
+                        if (j.at && Array.isArray(j.at)) {
+                            if (j.at.includes(pubKeyHex) || j.at.includes('ALL')) isAtMe = true;
+                        }
+                        if (j.text && j.text.includes('@' + myName)) isAtMe = true;
+                    } catch(e){}
+                }
+
+                // 如果被 @ 了，增加计数，并触发标题闪烁
+                if (isAtMe) {
+                    mentionCounts[peerPk] = (mentionCounts[peerPk] || 0) + 1;
+                    triggerBlinkTitle();
+                }
+
+                // === 修复后的系统通知逻辑 ===
+                let isMeMsg = (senderPk === pubKeyHex);
+
+                if (!isMeMsg && !isBrowserActive) {
+                    let nSender = (profiles[senderPk] && profiles[senderPk].name) ? profiles[senderPk].name : "用户";
+
+                    // 如果是幽灵群，尝试提取别名
+                    if (groups[peerPk] && groups[peerPk].type === 1) {
+                        try {
+                            let j = JSON.parse(decryptedText);
+                            if (j.alias) nSender = j.alias;
+                            else nSender = "Anon";
+                        } catch(e) {
+                            nSender = "Anon";
+                        }
+                    }
+
+                    let nContext = groups[peerPk] ? " (" + groups[peerPk].name + ")" : "";
+                    let notifyTitle = isAtMe ? "【有人@你】 DageChat" : "新消息" + nContext;
+                    let safePreview = String(decryptedText).substring(0, 30);
+                    if (safePreview.startsWith('{')) safePreview = "[卡片/图片]";
+
+                    showSystemNotification(notifyTitle, nSender + ": " + safePreview);
+                }
+
+                // 存入消息字典
+                messages[peerPk].push({
+                    id: msgId,
+                    sender: senderPk,
+                    text: decryptedText,
+                    time: timestamp,
+                    enc_type: encType,
+                    reply_to_id: replyId,
+                    isAtMe: isAtMe
+                });
+
+                // 重新按时间排序
+                messages[peerPk].sort(function(a, b) { return a.time - b.time; });
+
+                // 处理未读红点
+                if (isNewRealTimeMsg && peerPk !== currentChatPk && senderPk !== pubKeyHex) {
+                    unreadCounts[peerPk] = (unreadCounts[peerPk] || 0) + 1;
+                }
+
+                // 如果是陌生人，请求名片
+                if (!profiles[senderPk] && senderPk !== pubKeyHex) {
+                    broadcastToRelays(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), { kinds: [0], authors: [senderPk] }]));
+                }
+
+                // 触发批量渲染引擎
+                let shouldScroll = (currentChatPk === peerPk) && isNewRealTimeMsg;
+                triggerBatchUpdate(shouldScroll);
+            }
+        }
         // ================= 前端发送图片处理 (Canvas 安全重绘压缩引擎) =================
                 function handleImageSelect(event) {
                     const file = event.target.files[0];
