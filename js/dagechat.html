@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DageChat | 全场景加密通讯</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // 开启基于 class 的暗黑模式
+        }
+    </script>
     <script src="nostr.bundle.js"></script>
     <script src="sodium.js"></script>
     <style>
@@ -15,20 +20,20 @@
         .no-select { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
     </style>
 </head>
-<body class="bg-gray-100 h-screen-dvh w-screen overflow-hidden flex items-center justify-center font-sans relative">
+<body class="bg-gray-100 dark:bg-gray-950 h-screen-dvh w-screen overflow-hidden flex items-center justify-center font-sans relative">
 
     <!-- ================= 多账号登录界面 ================= -->
-    <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
+    <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white dark:bg-gray-900 md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
-          <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
+          <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-1">DageChat 🔐</h2>
           <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.36</div>
-            <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
                 <!-- 账号卡片动态渲染到这里 -->
             </div>
 
-            <div class="space-y-4 border-t border-gray-100 pt-6">
+            <div class="space-y-4 border-t border-gray-100 dark:border-gray-800 pt-6">
                 <button onclick="showAddAccountArea()" class="w-full bg-blue-50 text-blue-600 py-3 px-4 rounded-lg hover:bg-blue-100 transition shadow-sm font-medium active:scale-95 flex items-center justify-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     导入 / 创建新账号
@@ -37,28 +42,28 @@
         </div>
 
         <div class="max-w-sm w-full mx-auto hidden" id="add-account-area">
-            <button onclick="hideAddAccountArea()" class="text-gray-500 hover:text-gray-800 mb-4 flex items-center text-sm font-medium transition active:scale-95">
+            <button onclick="hideAddAccountArea()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 mb-4 flex items-center text-sm font-medium transition active:scale-95">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> 返回
             </button>
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">添加账号</h2>
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">添加账号</h2>
             <div class="space-y-5">
               <!-- 登录前：通过按钮打开统一的 Relay 管理器 -->
                               <div>
-                                  <label class="block text-sm font-medium text-gray-700 mb-1">网络与节点设置</label>
-                                  <button onclick="openRelayManager()" class="w-full bg-gray-50 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-100 transition shadow-sm border border-gray-200 font-medium flex items-center justify-center active:scale-95">
+                                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">网络与节点设置</label>
+                                  <button onclick="openRelayManager()" class="w-full bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-3 px-4 rounded-lg hover:bg-gray-100 dark:bg-gray-950 transition shadow-sm border border-gray-200 dark:border-gray-700 font-medium flex items-center justify-center active:scale-95">
                                       <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                                       配置 Relay 节点 (当前已选 <span id="pre-login-relay-count" class="mx-1 text-blue-600 font-bold">3</span> 个)
                                   </button>
                               </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">私钥 (nsec / hex)</label>
-                    <input type="password" id="sk-input" class="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 font-mono text-base outline-none" placeholder="输入现有私钥...">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">私钥 (nsec / hex)</label>
+                    <input type="password" id="sk-input" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 block w-full border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 font-mono text-base outline-none" placeholder="输入现有私钥...">
                 </div>
                 <button onclick="importAccount()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition shadow-md font-medium active:scale-95">加密导入本机</button>
                 <div class="relative flex py-4 items-center">
-                    <div class="flex-grow border-t border-gray-200"></div>
+                    <div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
                     <span class="flex-shrink-0 mx-4 text-gray-400 text-xs">或者</span>
-                    <div class="flex-grow border-t border-gray-200"></div>
+                    <div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
                 </div>
                 <button onclick="openCreateAccountModal()" class="w-full bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition shadow-md font-medium active:scale-95">生成全新账号</button>
             </div>
@@ -66,27 +71,27 @@
     </div>
 
     <!-- ================= 全屏密码解锁屏 (防窥) ================= -->
-    <div id="lock-screen" class="fixed inset-0 bg-gray-100 z-[100] hidden flex flex-col items-center justify-center p-4 backdrop-blur-md bg-opacity-95">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center">
+    <div id="lock-screen" class="fixed inset-0 bg-gray-100 dark:bg-gray-950 z-[100] hidden flex flex-col items-center justify-center p-4 backdrop-blur-md bg-opacity-95">
+        <div class="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center">
             <div id="lock-avatar" class="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden shadow-md mb-4 border-4 border-white"></div>
-            <h3 class="text-xl font-bold text-gray-800 mb-1" id="lock-name">已锁定</h3>
+            <h3 class="text-xl font-bold text-gray-800 dark:text-gray-100 mb-1" id="lock-name">已锁定</h3>
             <p class="text-sm text-gray-400 mb-6">为保护您的隐私，长时间无操作已自动锁定</p>
-            <input type="password" id="lock-pwd" placeholder="输入密码解锁" class="w-full border border-gray-300 rounded-lg p-3.5 text-base focus:ring-2 focus:ring-blue-500 outline-none text-center tracking-widest font-mono" onkeypress="if(event.key==='Enter') unlockApp()">
+            <input type="password" id="lock-pwd" placeholder="输入密码解锁" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3.5 text-base focus:ring-2 focus:ring-blue-500 outline-none text-center tracking-widest font-mono" onkeypress="if(event.key==='Enter') unlockApp()">
             <button onclick="unlockApp()" class="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition shadow-md font-medium active:scale-95">解 锁</button>
             <button onclick="logout()" class="mt-4 text-xs text-red-500 hover:text-red-700 px-3 py-2 transition">切换其他账号 / 退出</button>
         </div>
     </div>
 
     <!-- ================= 主界面 ================= -->
-    <div id="app-screen" class="w-full h-full md:max-w-6xl md:shadow-2xl flex hidden bg-white relative overflow-hidden z-10">
+    <div id="app-screen" class="w-full h-full md:max-w-6xl md:shadow-2xl flex hidden bg-white dark:bg-gray-900 relative overflow-hidden z-10">
         <!-- 左侧：侧边栏 -->
-        <div id="sidebar" class="w-full md:w-[320px] lg:w-[350px] flex-shrink-0 border-r border-gray-200 flex flex-col bg-white h-full z-10">
-          <div class="p-4 bg-gray-50 flex justify-between items-center border-b border-gray-200 shrink-0">
+        <div id="sidebar" class="w-full md:w-[320px] lg:w-[350px] flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-900 h-full z-10">
+          <div class="p-4 bg-gray-50 dark:bg-gray-800 flex justify-between items-center border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition min-w-0" onclick="showProfileModal()" title="点击修改资料 / 备份私钥">
                   <div id="my-avatar" class="w-11 h-11 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow shrink-0">我</div>
                   <div class="min-w-0 pr-2">
-                      <div id="my-name" class="font-semibold text-gray-800 text-base truncate">加载中...</div>
-                      <div class="flex items-center text-xs text-gray-500 mt-0.5">
+                      <div id="my-name" class="font-semibold text-gray-800 dark:text-gray-100 text-base truncate">加载中...</div>
+                      <div class="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                           <span id="relay-status" class="w-2 h-2 rounded-full bg-red-500 mr-1.5 shadow-sm shrink-0"></span>
                           <span id="current-relay-display" class="truncate">Relay</span>
                           <a href="#" id="sidebar-trust-link" target="_blank" class="hidden ml-2 px-1.5 py-0.5 bg-red-50 text-red-500 border border-red-200 rounded text-[10px] hover:bg-red-100 transition whitespace-nowrap shadow-sm">信任证书</a>
@@ -94,43 +99,43 @@
                   </div>
               </div>
               <div class="flex space-x-2 shrink-0">
-                  <button onclick="manualLock()" class="text-xs text-gray-500 hover:text-gray-800 px-3 py-1.5 border border-gray-300 rounded-lg bg-white active:bg-gray-100 shadow-sm">锁定</button>
-                  <button onclick="logout()" class="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 border border-red-200 rounded-lg bg-white active:bg-red-50 shadow-sm">注销</button>
+                  <button onclick="manualLock()" class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 active:bg-gray-100 dark:bg-gray-950 shadow-sm">锁定</button>
+                  <button onclick="logout()" class="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 border border-red-200 rounded-lg bg-white dark:bg-gray-900 active:bg-red-50 shadow-sm">注销</button>
               </div>
           </div>
-          <div class="p-3 border-b border-gray-200 bg-white shrink-0">
+          <div class="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
                           <div class="flex space-x-2">
-                              <input type="text" id="new-contact-input" placeholder="公钥 / 群邀请码 (dage://)" class="flex-1 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
+                              <input type="text" id="new-contact-input" placeholder="公钥 / 群邀请码 (dage://)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
                               <button onclick="addContact()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 shadow-sm active:scale-95 shrink-0">添加</button>
                               <button onclick="openCreateGroupModal()" class="bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-indigo-600 shadow-sm active:scale-95 shrink-0" title="创建群组">建群</button>
                           </div>
                       </div>
-            <div id="contacts-list" class="flex-1 overflow-y-auto no-scrollbar bg-white pb-safe"></div>
+            <div id="contacts-list" class="flex-1 overflow-y-auto no-scrollbar bg-white dark:bg-gray-900 pb-safe"></div>
         </div>
 
         <!-- 右侧：聊天区 -->
         <div id="chat-area" class="absolute md:static top-0 left-0 w-full md:w-auto h-full flex-1 flex flex-col chat-bg z-20 transform translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
-            <div id="chat-header" class="p-3 md:p-4 bg-white border-b border-gray-200 flex items-center justify-between shadow-sm z-10 shrink-0 hidden">
+            <div id="chat-header" class="p-3 md:p-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm z-10 shrink-0 hidden">
                 <div class="flex items-center space-x-3 min-w-0 cursor-pointer group" onclick="showPeerProfileModal()">
-                    <button onclick="closeChat(event)" class="md:hidden p-2 -ml-2 text-gray-600 active:scale-95">
+                    <button onclick="closeChat(event)" class="md:hidden p-2 -ml-2 text-gray-600 dark:text-gray-300 active:scale-95">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </button>
                     <!-- 聊天头部头像 -->
                     <div id="chat-avatar" class="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold shadow-sm shrink-0 overflow-hidden transition-transform group-active:scale-95">?</div>
                     <div class="min-w-0 transition-opacity group-active:opacity-70">
-                        <div id="chat-name" class="font-semibold text-gray-800 text-base md:text-md truncate">选择联系人</div>
+                        <div id="chat-name" class="font-semibold text-gray-800 dark:text-gray-100 text-base md:text-md truncate">选择联系人</div>
                         <div id="chat-pubkey" class="text-[11px] text-gray-400 truncate max-w-[120px] md:max-w-[200px]">点击查看资料</div>
                     </div>
                 </div>
                 <div class="flex items-center space-x-2 md:space-x-3 shrink-0">
                                     <!-- 协议切换开关 (NIP-59 / NIP-04) -->
-                                    <div id="protocol-switch-container" class="flex items-center space-x-1.5 md:space-x-2 bg-gray-50 px-2 py-1.5 rounded-lg border border-gray-200" title="开启使用 NIP-59(双重加密)，关闭使用 NIP-04(基础私聊)">
+                                    <div id="protocol-switch-container" class="flex items-center space-x-1.5 md:space-x-2 bg-gray-50 dark:bg-gray-800 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700" title="开启使用 NIP-59(双重加密)，关闭使用 NIP-04(基础私聊)">
                                         <span id="protocol-icon" class="text-xs md:text-sm drop-shadow-sm">🎁</span>
                                         <label class="relative inline-flex items-center cursor-pointer mt-0.5">
-                                            <input type="checkbox" id="protocol-switch" class="sr-only peer" checked onchange="toggleProtocol()">
-                                            <div class="w-7 h-4 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                                            <input type="checkbox" id="protocol-switch" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 sr-only peer" checked onchange="toggleProtocol()">
+                                            <div class="w-7 h-4 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-900 after:border-gray-300 dark:border-gray-600 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
                                         </label>
-                                        <span id="protocol-label" class="text-[10px] md:text-xs text-gray-600 font-bold w-10 text-center tracking-wide">NIP-59</span>
+                                        <span id="protocol-label" class="text-[10px] md:text-xs text-gray-600 dark:text-gray-300 font-bold w-10 text-center tracking-wide">NIP-59</span>
                                     </div>
 
                                     <!-- 新增：导出当前会话按钮 (移动端隐藏文字只显图标，避免拥挤) -->
@@ -140,65 +145,65 @@
                                     </button>
 
                                     <!-- 原有：清空本地按钮 -->
-                                    <button onclick="clearCurrentChatHistory()" class="text-xs text-gray-500 hover:text-red-500 px-3 py-2 bg-white rounded-lg active:bg-red-50 transition shadow-sm border border-gray-200">清空</button>
+                                    <button onclick="clearCurrentChatHistory()" class="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 px-3 py-2 bg-white dark:bg-gray-900 rounded-lg active:bg-red-50 transition shadow-sm border border-gray-200 dark:border-gray-700">清空</button>
                                 </div>
             </div>
 
-            <div id="welcome-area" class="hidden md:flex absolute inset-0 flex-col items-center justify-center text-gray-400 bg-gray-50 z-0">
-                            <div class="w-24 h-24 mb-6 rounded-full bg-white shadow-md flex items-center justify-center border border-gray-100">
+            <div id="welcome-area" class="hidden md:flex absolute inset-0 flex-col items-center justify-center text-gray-400 bg-gray-50 dark:bg-gray-800 z-0">
+                            <div class="w-24 h-24 mb-6 rounded-full bg-white dark:bg-gray-900 shadow-md flex items-center justify-center border border-gray-100 dark:border-gray-800">
                                 <!-- 替换为：去中心化网络节点与安全护盾融合的图标 -->
                                 <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                                 </svg>
                             </div>
-                            <h3 class="text-xl font-bold text-gray-700 tracking-wide">DageChat 去中心化安全协议端</h3>
+                            <h3 class="text-xl font-bold text-gray-700 dark:text-gray-200 tracking-wide">DageChat 去中心化安全协议端</h3>
                             <p class="text-sm mt-3 text-gray-400 max-w-md text-center leading-relaxed">
                                 基于 Nostr 协议构建，全场景加密通讯，无中心化服务器<br>密钥即身份，通讯主权，自由导出
                             </p>
                             <div class="mt-8 flex space-x-4">
-                                <span class="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full font-medium">NIP-04/59</span>
-                                <span class="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full font-medium">AES-GCM</span>
-                                <span class="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full font-medium">PoW</span>
+                                <span class="px-3 py-1 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 text-xs rounded-full font-medium">NIP-04/59</span>
+                                <span class="px-3 py-1 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 text-xs rounded-full font-medium">AES-GCM</span>
+                                <span class="px-3 py-1 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 text-xs rounded-full font-medium">PoW</span>
                             </div>
                         </div>
 
             <div id="message-list" class="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar hidden z-0"></div>
 
-            <div id="chat-input-area" class="p-3 md:p-4 bg-white border-t border-gray-200 hidden z-10 shrink-0 pb-safe relative">
+            <div id="chat-input-area" class="p-3 md:p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 hidden z-10 shrink-0 pb-safe relative">
 
 
               <!-- 新增：回复预览栏 -->
-                <div id="reply-preview-area" class="hidden mb-2 px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-between">
+                <div id="reply-preview-area" class="hidden mb-2 px-3 py-2 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-between">
                     <div class="flex flex-col overflow-hidden border-l-2 border-blue-500 pl-2">
                         <span class="text-xs font-bold text-blue-600">回复:</span>
-                        <span id="reply-preview-text" class="text-xs text-gray-600 truncate mt-0.5"></span>
+                        <span id="reply-preview-text" class="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5"></span>
                     </div>
                     <button onclick="cancelReply()" class="text-gray-400 hover:text-red-500 ml-3 shrink-0">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
                 <div id="image-preview-area" class="hidden mb-3 relative inline-block">
-                    <img id="image-preview-img" class="h-20 md:h-24 rounded-lg border border-gray-200 object-cover shadow-sm">
+                    <img id="image-preview-img" class="h-20 md:h-24 rounded-lg border border-gray-200 dark:border-gray-700 object-cover shadow-sm">
                     <button onclick="clearPendingImage()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 shadow-sm">&times;</button>
                 </div>
 
                 <div class="flex space-x-2 items-end">
                     <!-- 新增：@ 提及按钮 (仅在群聊中有效) -->
-                    <button id="btn-mention" onclick="openMentionModal()" class="text-gray-500 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5 font-bold text-lg hidden" title="@提及成员">@</button>
+                    <button id="btn-mention" onclick="openMentionModal()" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5 font-bold text-lg hidden" title="@提及成员">@</button>
 
-                    <button onclick="document.getElementById('image-upload').click()" class="text-gray-500 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5" title="发送图片">
+                    <button onclick="document.getElementById('image-upload').click()" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5" title="发送图片">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                     </button>
-                    <input type="file" id="image-upload" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+                    <input type="file" id="image-upload" accept="image/*" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 hidden" onchange="handleImageSelect(event)">
 
-                    <textarea id="msg-input" rows="1" placeholder="输入消息... 长按气泡更多操作" class="flex-1 border border-gray-300 rounded-xl py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm resize-none text-base max-h-32 no-scrollbar" oninput="handleChatInput(this)" onkeypress="handleEnter(event)"></textarea>
+                    <textarea id="msg-input" rows="1" placeholder="输入消息... 长按气泡更多操作" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm resize-none text-base max-h-32 no-scrollbar" oninput="handleChatInput(this)" onkeypress="handleEnter(event)"></textarea>
                     <button onclick="sendMessage()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 shadow-sm font-medium active:scale-95 h-[46px]">发送</button>
                 </div>
             </div>
 
-            <div id="select-action-area" class="p-3 md:p-4 bg-gray-50 border-t border-gray-200 hidden z-10 shrink-0 pb-safe flex justify-between items-center shadow-lg">
-                            <button onclick="exitSelectMode()" class="text-gray-600 px-5 py-2 bg-white border border-gray-300 rounded-lg active:bg-gray-100 text-sm">取消</button>
-                            <div class="text-sm text-gray-500">已选 <span id="select-count" class="text-blue-600 font-bold">0</span> 条</div>
+            <div id="select-action-area" class="p-3 md:p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 hidden z-10 shrink-0 pb-safe flex justify-between items-center shadow-lg">
+                            <button onclick="exitSelectMode()" class="text-gray-600 dark:text-gray-300 px-5 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg active:bg-gray-100 dark:bg-gray-950 text-sm">取消</button>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">已选 <span id="select-count" class="text-blue-600 font-bold">0</span> 条</div>
                             <div class="flex space-x-2">
                                 <button onclick="openForwardModal('merge')" class="text-white bg-indigo-500 px-3 py-2 rounded-lg active:bg-indigo-600 text-sm shadow-sm flex items-center">
                                     <span>📦 合并转发</span>
@@ -217,7 +222,7 @@
     <!-- ================= 对方资料卡 弹窗 ================= -->
       <div id="peer-profile-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[60] flex items-center justify-center p-4 transition-opacity" onclick="if(event.target===this) closePeerProfileModal()">
           <!-- 重点修复：父容器加上 relative 保证绝对定位不会越界 -->
-          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-transform scale-95 overflow-hidden max-h-[85vh] relative" id="peer-profile-content">
+          <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-transform scale-95 overflow-hidden max-h-[85vh] relative" id="peer-profile-content">
               <!-- 头部背景 (固定不滚动) -->
               <div class="h-24 bg-gradient-to-r from-blue-400 to-blue-600 relative shrink-0 z-10">
                   <button onclick="closePeerProfileModal()" class="absolute top-3 right-3 text-white bg-black bg-opacity-20 hover:bg-opacity-40 rounded-full p-1.5 transition">
@@ -226,18 +231,18 @@
               </div>
 
               <!-- 重点修复：头像浮动在整个容器两层之间，彻底脱离内容滚动区的裁剪限制 -->
-              <div id="peer-modal-avatar" class="absolute top-12 left-1/2 transform -translate-x-1/2 w-24 h-24 bg-white rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center text-gray-400 text-3xl font-bold z-20"></div>
+              <div id="peer-modal-avatar" class="absolute top-12 left-1/2 transform -translate-x-1/2 w-24 h-24 bg-white dark:bg-gray-900 rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center text-gray-400 text-3xl font-bold z-20"></div>
 
               <!-- 内容区 (支持滚动) -->
-              <div class="px-6 pb-6 relative pt-14 flex flex-col items-center flex-1 overflow-y-auto no-scrollbar bg-white">
-                  <h3 id="peer-modal-name" class="text-xl font-bold text-gray-800 mb-1 text-center w-full break-words">名字</h3>
-                  <span id="peer-modal-badge" class="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded mb-4 font-medium hidden">陌生人</span>
+              <div class="px-6 pb-6 relative pt-14 flex flex-col items-center flex-1 overflow-y-auto no-scrollbar bg-white dark:bg-gray-900">
+                  <h3 id="peer-modal-name" class="text-xl font-bold text-gray-800 dark:text-gray-100 mb-1 text-center w-full break-words">名字</h3>
+                  <span id="peer-modal-badge" class="px-2 py-0.5 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 text-[10px] rounded mb-4 font-medium hidden">陌生人</span>
 
-                  <div class="w-full bg-gray-50 rounded-lg p-3 border border-gray-100 mb-4 shrink-0">
+                  <div class="w-full bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-800 mb-4 shrink-0">
                       <label id="peer-modal-pubkey-label" class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Npub 公钥</label>
                       <div class="flex items-center">
-                          <div id="peer-modal-pubkey" class="text-xs text-gray-600 font-mono truncate flex-1 select-all"></div>
-                          <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('ID 已复制！')" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1 bg-white rounded shadow-sm border border-gray-200 active:scale-95">
+                          <div id="peer-modal-pubkey" class="text-xs text-gray-600 dark:text-gray-300 font-mono truncate flex-1 select-all"></div>
+                          <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('ID 已复制！')" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1 bg-white dark:bg-gray-900 rounded shadow-sm border border-gray-200 dark:border-gray-700 active:scale-95">
                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                           </button>
                       </div>
@@ -247,7 +252,7 @@
                   <div id="peer-extra-info" class="w-full space-y-3 mb-5 hidden shrink-0">
                       <div id="peer-modal-about-container" class="hidden">
                           <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">简介 (About)</label>
-                          <div id="peer-modal-about" class="text-gray-700 text-xs whitespace-pre-wrap break-words bg-gray-50 p-2.5 rounded border border-gray-100 leading-relaxed"></div>
+                          <div id="peer-modal-about" class="text-gray-700 dark:text-gray-200 text-xs whitespace-pre-wrap break-words bg-gray-50 dark:bg-gray-800 p-2.5 rounded border border-gray-100 dark:border-gray-800 leading-relaxed"></div>
                       </div>
                       <div id="peer-modal-website-container" class="hidden">
                           <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">网站 (Website)</label>
@@ -257,16 +262,16 @@
                           <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">闪电网络 (Lightning)</label>
                           <div class="flex items-center bg-yellow-50 p-2 rounded border border-yellow-100">
                               <span class="text-yellow-600 mr-2 text-sm">⚡</span>
-                              <div id="peer-modal-ln" class="text-gray-700 text-xs break-all font-mono flex-1"></div>
+                              <div id="peer-modal-ln" class="text-gray-700 dark:text-gray-200 text-xs break-all font-mono flex-1"></div>
                           </div>
                       </div>
                       <div id="peer-modal-relays-container" class="hidden">
                           <label class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">公开节点 (Relays)</label>
-                          <div id="peer-modal-relays" class="text-gray-600 text-[11px] whitespace-pre-wrap break-words bg-gray-50 p-2 rounded border border-gray-100 font-mono leading-relaxed"></div>
+                          <div id="peer-modal-relays" class="text-gray-600 dark:text-gray-300 text-[11px] whitespace-pre-wrap break-words bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-800 font-mono leading-relaxed"></div>
                       </div>
                   </div>
 
-                  <div id="peer-action-btn-area" class="w-full shrink-0 border-t border-gray-100 pt-4">
+                  <div id="peer-action-btn-area" class="w-full shrink-0 border-t border-gray-100 dark:border-gray-800 pt-4">
                       <!-- 动态渲染 -->
                   </div>
               </div>
@@ -275,48 +280,47 @@
 
     <!-- ================= 消息长按底部弹窗 ================= -->
     <div id="msg-action-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden z-50 flex flex-col justify-end md:justify-center md:items-center transition-opacity" onclick="closeMsgActionModal(event)">
-        <div id="msg-action-content" class="bg-white w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
+        <div id="msg-action-content" class="bg-white dark:bg-gray-900 w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2 md:hidden"></div>
             <div class="p-2 space-y-1">
-                <button onclick="doAction('reply')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">↩️ 回复</button>
-                <div class="h-[1px] bg-gray-100 my-1"></div>
-                <button onclick="doAction('copy')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">📄 复制</button>
-                <button onclick="doAction('select_copy')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">✂️ 选择复制</button>
-                <div class="h-[1px] bg-gray-100 my-1"></div>
-                <button onclick="doAction('delete')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">🗑️ 删除 (仅本地)</button>
-                <button id="btn-recall" onclick="doAction('recall')" class="w-full py-4 text-red-500 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium hidden">🔙 撤回 (双方同步删除)</button>
-                <button onclick="doAction('multi')" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">☑️ 多选</button>
-                <div class="h-[1px] bg-gray-100 my-1"></div>
-                <button onclick="closeMsgActionModal()" class="w-full py-4 text-gray-500 text-[17px] active:bg-gray-100 rounded-lg text-center">取消</button>
+                <button onclick="doAction('reply')" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">↩️ 回复</button>
+                <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
+                <button onclick="doAction('copy')" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">📄 复制</button>
+                <button onclick="doAction('select_copy')" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">✂️ 选择复制</button>
+                <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
+                <button onclick="doAction('delete')" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">🗑️ 删除 (仅本地)</button>
+                <button id="btn-recall" onclick="doAction('recall')" class="w-full py-4 text-red-500 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium hidden">🔙 撤回 (双方同步删除)</button>
+                <button onclick="doAction('multi')" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">☑️ 多选</button>
+                <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
+                <button onclick="closeMsgActionModal()" class="w-full py-4 text-gray-500 dark:text-gray-400 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center">取消</button>
             </div>
         </div>
     </div>
 
     <!-- ================= 选择复制弹窗 ================= -->
     <div id="select-copy-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[60] flex items-center justify-center p-4">
-        <div class="bg-white p-5 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
             <div class="flex justify-between items-center mb-3">
-                <h3 class="text-lg font-bold text-gray-800">选择复制</h3>
-                <button onclick="closeSelectCopyModal()" class="text-gray-500 hover:text-gray-800 p-1">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100">选择复制</h3>
+                <button onclick="closeSelectCopyModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <p class="text-xs text-gray-500 mb-2">长按下方文本以自由选择并复制</p>
-            <div id="select-copy-text" class="flex-1 overflow-y-auto p-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap break-words" style="user-select: text; -webkit-user-select: text; -webkit-touch-callout: default;"></div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">长按下方文本以自由选择并复制</p>
+            <div id="select-copy-text" class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-800 dark:text-gray-100 text-[15px] leading-relaxed whitespace-pre-wrap break-words" style="user-select: text; -webkit-user-select: text; -webkit-touch-callout: default;"></div>
             <div class="mt-4 flex justify-end">
-                <button onclick="copyText(document.getElementById('select-copy-text').innerText); alert('已全选复制！'); closeSelectCopyModal();" class="px-4 py-2.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition mr-2">全选复制</button>
+                <button onclick="copyText(document.getElementById('select-copy-text').innerText); alert('已全选复制！'); closeSelectCopyModal();" class="px-4 py-2.5 text-sm font-medium bg-gray-100 dark:bg-gray-950 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 transition mr-2">全选复制</button>
                 <button onclick="closeSelectCopyModal()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">完成</button>
             </div>
         </div>
     </div>
 
     <!-- ================= 个人资料与设置弹窗 ================= -->
-    <!-- ================= 个人资料与设置弹窗 ================= -->
       <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40 p-4 flex items-center justify-center">
-          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
-              <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 rounded-t-2xl">
-                  <h3 class="text-lg font-bold text-gray-800">个人资料与设置</h3>
-                  <button onclick="closeProfileModal()" class="text-gray-500 hover:text-gray-800 p-1 transition active:scale-95">
+          <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+              <div class="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0 rounded-t-2xl">
+                  <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100">个人资料与设置</h3>
+                  <button onclick="closeProfileModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1 transition active:scale-95">
                       <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                   </button>
               </div>
@@ -325,7 +329,7 @@
                   <!-- 网络与屏蔽名单 -->
                   <div class="space-y-2">
                     <div class="flex space-x-2">
-                        <button onclick="openRelayManager()" class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition border border-gray-200 flex items-center justify-center active:scale-95">
+                        <button onclick="openRelayManager()" class="flex-1 bg-gray-100 dark:bg-gray-950 text-gray-700 dark:text-gray-200 py-2 rounded-lg text-xs font-medium hover:bg-gray-200 transition border border-gray-200 dark:border-gray-700 flex items-center justify-center active:scale-95">
                             多节点与网络
                         </button>
                         <button onclick="forceIncrementalUploadToCloud(this)" class="flex-1 bg-indigo-50 text-indigo-600 py-2 rounded-lg text-xs font-medium hover:bg-indigo-100 transition border border-indigo-200 flex items-center justify-center active:scale-95">
@@ -336,66 +340,69 @@
                         </button>
                     </div>
                     <!-- 新增：全局导出按钮 -->
-                    <button onclick="openExportModal()" class="w-full bg-white text-gray-600 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition border border-gray-300 shadow-sm flex items-center justify-center active:scale-95">
+                    <button onclick="openExportModal()" class="w-full bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 dark:bg-gray-800 transition border border-gray-300 dark:border-gray-600 shadow-sm flex items-center justify-center active:scale-95">
                         <svg class="w-4 h-4 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path><polyline points="16 17 22 17 22 11"></polyline><path d="M22 17L12 7"></path></svg>
                         全局导出聊天记录 (HTML / TXT)
+                    </button>
+                    <button id="theme-toggle-btn" onclick="toggleTheme()" class="w-full bg-gray-100 dark:bg-gray-950 dark:bg-gray-800 text-gray-700 dark:text-gray-200 dark:text-gray-300 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition border border-gray-300 dark:border-gray-600 dark:border-gray-600 shadow-sm flex items-center justify-center active:scale-95 mt-2">
+                        🌙 切换暗色
                     </button>
                 </div>
 
                   <div class="flex space-x-3">
                       <div class="flex-1">
-                          <label class="block text-xs font-medium text-gray-700 mb-1">展示昵称 (Name)</label>
-                          <input type="text" id="edit-name" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                          <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">展示昵称 (Name)</label>
+                          <input type="text" id="edit-name" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                       </div>
                       <div class="w-24 shrink-0">
-                          <label class="block text-[10px] font-medium text-gray-500 mb-1 leading-tight">锁屏时间<br>(1~600分)</label>
-                          <input type="number" id="edit-locktime" min="1" max="600" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono text-center">
+                          <label class="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-1 leading-tight">锁屏时间<br>(1~600分)</label>
+                          <input type="number" id="edit-locktime" min="1" max="600" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono text-center">
                       </div>
                   </div>
 
                   <div class="flex space-x-3">
                       <div class="flex-1">
-                          <label class="block text-xs font-medium text-gray-700 mb-1">闪电网络 (LN/lud16)</label>
-                          <input type="text" id="edit-ln" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="user@getalby.com">
+                          <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">闪电网络 (LN/lud16)</label>
+                          <input type="text" id="edit-ln" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="user@getalby.com">
                       </div>
                       <div class="flex-1">
-                          <label class="block text-xs font-medium text-gray-700 mb-1">网站 (Website)</label>
-                          <input type="text" id="edit-website" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                          <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">网站 (Website)</label>
+                          <input type="text" id="edit-website" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
                       </div>
                   </div>
 
                   <div>
-                      <label class="block text-xs font-medium text-gray-700 mb-1">头像链接 (Picture URL)</label>
-                      <input type="text" id="edit-avatar" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                      <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">头像链接 (Picture URL)</label>
+                      <input type="text" id="edit-avatar" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
                   </div>
 
                   <div>
-                      <label class="block text-xs font-medium text-gray-700 mb-1">个人简介 (About)</label>
-                      <textarea id="edit-about" rows="2" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="写点什么..."></textarea>
+                      <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">个人简介 (About)</label>
+                      <textarea id="edit-about" rows="2" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="写点什么..."></textarea>
                   </div>
 
                   <div>
-                      <label class="block text-xs font-medium text-gray-700 mb-1">公开展示的 Relay 列表 (供他人查阅)</label>
-                      <textarea id="edit-relays-display" rows="2" class="w-full border border-gray-300 rounded-lg p-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="wss://relay.damus.io, wss://..."></textarea>
+                      <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">公开展示的 Relay 列表 (供他人查阅)</label>
+                      <textarea id="edit-relays-display" rows="2" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="wss://relay.damus.io, wss://..."></textarea>
                   </div>
 
-                  <div class="border-t border-gray-200 pt-4">
-                      <label class="block text-xs font-medium text-gray-700 mb-1">我的公钥 (发给朋友添加你)</label>
+                  <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                      <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">我的公钥 (发给朋友添加你)</label>
                       <div class="flex">
-                          <input type="text" id="my-npub-display" readonly class="w-full border border-gray-300 rounded-l-lg p-2 bg-gray-100 text-gray-500 font-mono text-xs overflow-hidden outline-none">
-                          <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 rounded-r-lg text-sm border border-l-0 border-gray-300 transition font-medium">复制</button>
+                          <input type="text" id="my-npub-display" readonly class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-l-lg p-2 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 font-mono text-xs overflow-hidden outline-none">
+                          <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 rounded-r-lg text-sm border border-l-0 border-gray-300 dark:border-gray-600 transition font-medium">复制</button>
                       </div>
                   </div>
                   <div class="mt-2">
                       <label class="block text-xs font-bold text-red-600 mb-1">私钥备份 (须验证密码)</label>
                       <div class="flex">
-                          <input type="password" id="my-nsec-display" readonly value="••••••••••••••" class="w-full border border-gray-300 rounded-l-lg p-2 bg-red-50 text-red-600 font-mono text-xs overflow-hidden outline-none">
-                          <button onclick="actionWithPasswordVerification('toggleKey')" id="btn-toggle-key" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 text-sm border-t border-b border-gray-300 transition font-medium">显示</button>
+                          <input type="password" id="my-nsec-display" readonly value="••••••••••••••" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-l-lg p-2 bg-red-50 text-red-600 font-mono text-xs overflow-hidden outline-none">
+                          <button onclick="actionWithPasswordVerification('toggleKey')" id="btn-toggle-key" class="bg-gray-100 dark:bg-gray-950 hover:bg-gray-200 text-gray-700 dark:text-gray-200 px-3 text-sm border-t border-b border-gray-300 dark:border-gray-600 transition font-medium">显示</button>
                           <button onclick="actionWithPasswordVerification('copyKey')" class="bg-red-500 hover:bg-red-600 text-white px-3 rounded-r-lg text-sm border border-l-0 border-red-500 transition font-medium whitespace-nowrap">复制</button>
                       </div>
                   </div>
               </div>
-              <div class="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end shrink-0">
+              <div class="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded-b-2xl flex justify-end shrink-0">
                   <button onclick="saveProfile()" class="w-full py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">保存设置</button>
               </div>
           </div>
@@ -403,15 +410,15 @@
 
     <!-- ================= 设置密码 弹窗 ================= -->
     <div id="pwd-setup-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[150] flex items-center justify-center p-4">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
-            <h3 class="text-lg font-bold text-gray-800 mb-2" id="pwd-setup-title">设置安全密码</h3>
-            <p class="text-sm text-gray-500 mb-5" id="pwd-setup-desc">此密码用于本地高强度加密保护您的私钥。以后登录或解锁都需使用。密码仅存在本地，遗忘无法找回！</p>
+        <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2" id="pwd-setup-title">设置安全密码</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-5" id="pwd-setup-desc">此密码用于本地高强度加密保护您的私钥。以后登录或解锁都需使用。密码仅存在本地，遗忘无法找回！</p>
             <div class="space-y-4">
-                <input type="password" id="new-pwd" placeholder="输入新密码 (至少6位)" class="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
-                <input type="password" id="confirm-pwd" placeholder="再次确认密码" class="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none" onkeypress="if(event.key==='Enter') submitPwdSetup()">
+                <input type="password" id="new-pwd" placeholder="输入新密码 (至少6位)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="password" id="confirm-pwd" placeholder="再次确认密码" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none" onkeypress="if(event.key==='Enter') submitPwdSetup()">
             </div>
             <div class="mt-6 flex justify-end space-x-3">
-                <button onclick="closePwdSetupModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
+                <button onclick="closePwdSetupModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-950 rounded-lg transition">取消</button>
                 <button onclick="submitPwdSetup()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">确认</button>
             </div>
         </div>
@@ -419,12 +426,12 @@
 
     <!-- ================= 验证密码 弹窗 (查看私钥 / 登录账号) ================= -->
     <div id="pwd-verify-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[150] flex items-center justify-center p-4">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
-            <h3 class="text-lg font-bold text-gray-800 mb-2">身份验证</h3>
-            <p class="text-sm text-gray-500 mb-5">请输入该账号的安全密码。</p>
-            <input type="password" id="verify-pwd" placeholder="输入密码" class="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none" onkeypress="if(event.key==='Enter') submitPwdVerify()">
+        <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">身份验证</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">请输入该账号的安全密码。</p>
+            <input type="password" id="verify-pwd" placeholder="输入密码" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 outline-none" onkeypress="if(event.key==='Enter') submitPwdVerify()">
             <div class="mt-6 flex justify-end space-x-3">
-                <button onclick="closePwdVerifyModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
+                <button onclick="closePwdVerifyModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-950 rounded-lg transition">取消</button>
                 <button onclick="submitPwdVerify()" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">确认</button>
             </div>
         </div>
@@ -432,43 +439,43 @@
 
     <!-- ================= Relay 多节点管理弹窗 ================= -->
     <div id="relay-manager-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[80] flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] overflow-hidden">
-            <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-                <h3 class="text-lg font-bold text-gray-800 flex items-center">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] overflow-hidden">
+            <div class="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center">
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                     网络与中继节点
                 </h3>
-                <button onclick="closeRelayManager()" class="text-gray-500 hover:text-gray-800 p-1 transition active:scale-95">
+                <button onclick="closeRelayManager()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1 transition active:scale-95">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
 
-            <div class="p-5 border-b border-gray-100 shrink-0">
+            <div class="p-5 border-b border-gray-100 dark:border-gray-800 shrink-0">
                 <div class="flex space-x-2">
-                    <input type="text" id="new-relay-input" placeholder="输入 Relay 地址 (wss://...)" class="flex-1 border border-gray-300 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="new-relay-input" placeholder="输入 Relay 地址 (wss://...)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <button onclick="addRelayNode()" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition active:scale-95 shrink-0">添加并连接</button>
                 </div>
                 <p class="text-xs text-gray-400 mt-2">提示：连接失败的自签名节点，请点击列表中的“信任证书”以授权。</p>
             </div>
 
-            <div class="flex-1 overflow-y-auto bg-white p-2 no-scrollbar" id="relay-list-container">
+            <div class="flex-1 overflow-y-auto bg-white dark:bg-gray-900 p-2 no-scrollbar" id="relay-list-container">
                 <!-- 节点列表动态渲染 -->
             </div>
         </div>
     </div>
     <!-- ================= 黑名单管理弹窗 ================= -->
         <div id="blocklist-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[90] flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col max-h-[80vh] overflow-hidden">
-                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-                    <h3 class="text-md font-bold text-gray-800">🚫 屏蔽名单管理</h3>
-                    <button onclick="closeBlocklistManager()" class="text-gray-500 hover:text-gray-800 p-1 transition active:scale-95">
+            <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col max-h-[80vh] overflow-hidden">
+                <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
+                    <h3 class="text-md font-bold text-gray-800 dark:text-gray-100">🚫 屏蔽名单管理</h3>
+                    <button onclick="closeBlocklistManager()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1 transition active:scale-95">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
-                <div class="p-3 border-b border-gray-100 bg-white text-xs text-gray-500 shrink-0">
+                <div class="p-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 text-xs text-gray-500 dark:text-gray-400 shrink-0">
                     被屏蔽的用户将无法向您发送私聊，且在群聊中会自动隐藏其发言。
                 </div>
-                <div id="blocklist-container" class="flex-1 overflow-y-auto bg-white p-2 no-scrollbar space-y-1">
+                <div id="blocklist-container" class="flex-1 overflow-y-auto bg-white dark:bg-gray-900 p-2 no-scrollbar space-y-1">
                     <!-- 黑名单列表动态渲染 -->
                 </div>
             </div>
@@ -490,24 +497,24 @@
 
         <!-- ================= 创建群组 弹窗 ================= -->
             <div id="create-group-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[70] flex items-center justify-center p-4">
-                <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">创建新群组</h3>
+                <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">创建新群组</h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">群组名称</label>
-                            <input type="text" id="new-group-name" placeholder="输入群组名称..." class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">群组名称</label>
+                            <input type="text" id="new-group-name" placeholder="输入群组名称..." class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                         </div>
                         <div class="flex items-center mt-2 cursor-pointer" onclick="document.getElementById('new-group-isghost').click()">
-                            <input type="checkbox" id="new-group-isghost" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer pointer-events-none">
-                            <span class="ml-2 block text-sm text-gray-800 font-medium">创建为共享密钥群 (幽灵群 ⚡)</span>
+                            <input type="checkbox" id="new-group-isghost" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 cursor-pointer pointer-events-none">
+                            <span class="ml-2 block text-sm text-gray-800 dark:text-gray-100 font-medium">创建为共享密钥群 (幽灵群 ⚡)</span>
                         </div>
-                        <p class="text-xs text-gray-500 leading-relaxed">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                             * <b>普通群 📢</b>：群主可管理，所有客户端可见。<br>
                             * <b>共享密钥群 ⚡</b>：极其匿名，群成员共用一把私钥收发信，无法追踪真实身份。
                         </p>
                     </div>
                     <div class="mt-6 flex justify-end space-x-3">
-                        <button onclick="closeCreateGroupModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">取消</button>
+                        <button onclick="closeCreateGroupModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-950 rounded-lg transition">取消</button>
                         <button onclick="submitCreateGroup()" class="px-5 py-2.5 text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition shadow-sm active:scale-95">生成群组并获取邀请码</button>
                     </div>
                 </div>
@@ -515,12 +522,12 @@
 
             <!-- ================= 邀请码展示 弹窗 ================= -->
             <div id="invite-code-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[80] flex items-center justify-center p-4">
-                <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
-                    <h3 class="text-lg font-bold text-gray-800 mb-2">群组邀请码</h3>
-                    <p class="text-xs text-gray-500 mb-4">复制下方邀请码发送给好友，对方在添加栏粘贴即可加入。</p>
-                    <textarea id="invite-code-display" readonly rows="5" class="w-full border border-gray-300 rounded-lg p-3 text-xs text-gray-600 bg-gray-50 focus:outline-none resize-none break-all"></textarea>
+                <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">群组邀请码</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">复制下方邀请码发送给好友，对方在添加栏粘贴即可加入。</p>
+                    <textarea id="invite-code-display" readonly rows="5" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 focus:outline-none resize-none break-all"></textarea>
                     <div class="mt-5 flex justify-end space-x-3">
-                        <button onclick="closeInviteCodeModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">关闭</button>
+                        <button onclick="closeInviteCodeModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-950 rounded-lg transition">关闭</button>
                         <button onclick="copyText(document.getElementById('invite-code-display').value); alert('邀请码已复制！'); closeInviteCodeModal();" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">复制邀请码</button>
                     </div>
                 </div>
@@ -528,10 +535,10 @@
 
             <!-- ================= 转发对象选择 弹窗 ================= -->
                 <div id="forward-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[80] flex items-center justify-center p-4">
-                    <div class="bg-white p-5 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col h-[70vh]">
+                    <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col h-[70vh]">
                         <div class="flex justify-between items-center mb-3">
-                            <h3 class="text-lg font-bold text-gray-800">发送给... (合并转发)</h3>
-                            <button onclick="closeForwardModal()" class="text-gray-500 hover:text-gray-800 p-1"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                            <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100">发送给... (合并转发)</h3>
+                            <button onclick="closeForwardModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                         </div>
                         <div id="forward-target-list" class="flex-1 overflow-y-auto no-scrollbar space-y-1"></div>
                     </div>
@@ -539,16 +546,16 @@
 
                 <!-- ================= 聊天记录卡片查看器 弹窗 ================= -->
                 <div id="history-viewer-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[90] flex items-center justify-center p-4">
-                   <div class="bg-white p-4 rounded-xl shadow-2xl w-full max-w-md flex flex-col h-[85vh]">
-                       <div class="flex justify-between items-center mb-3 border-b border-gray-100 pb-2 shrink-0">
+                   <div class="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-2xl w-full max-w-md flex flex-col h-[85vh]">
+                       <div class="flex justify-between items-center mb-3 border-b border-gray-100 dark:border-gray-800 pb-2 shrink-0">
                            <div class="flex items-center min-w-0">
                                <!-- 新增：返回上一层的按钮 (默认隐藏) -->
                                <button id="history-back-btn" onclick="popHistoryView()" class="hidden text-blue-500 hover:text-blue-700 mr-2 p-1 shrink-0 transition active:scale-95">
                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                                </button>
-                               <h3 class="text-md font-bold text-gray-800 truncate" id="history-viewer-title">聊天记录</h3>
+                               <h3 class="text-md font-bold text-gray-800 dark:text-gray-100 truncate" id="history-viewer-title">聊天记录</h3>
                            </div>
-                           <button onclick="closeHistoryViewer()" class="text-gray-500 hover:text-gray-800 p-1 shrink-0 transition active:scale-95">
+                           <button onclick="closeHistoryViewer()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1 shrink-0 transition active:scale-95">
                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                            </button>
                        </div>
@@ -558,54 +565,54 @@
 
 <!-- ================= @ 提及成员选择弹窗 ================= -->
    <div id="mention-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[80] flex items-center justify-center p-4">
-       <div class="bg-white p-5 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col h-[60vh]">
+       <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col h-[60vh]">
            <div class="flex justify-between items-center mb-3 shrink-0">
-               <h3 class="text-lg font-bold text-gray-800">选择要 @ 的成员</h3>
-               <button onclick="closeMentionModal()" class="text-gray-500 hover:text-gray-800 p-1"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+               <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100">选择要 @ 的成员</h3>
+               <button onclick="closeMentionModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
            </div>
            <div id="mention-member-list" class="flex-1 overflow-y-auto no-scrollbar space-y-1"></div>
        </div>
    </div>
    <!-- ================= 气泡成员操作菜单 ================= -->
        <div id="member-action-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden z-[70] flex flex-col justify-end md:justify-center md:items-center transition-opacity" onclick="closeMemberActionModal(event)">
-           <div id="member-action-content" class="bg-white w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
+           <div id="member-action-content" class="bg-white dark:bg-gray-900 w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
                <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2 md:hidden"></div>
-               <div class="p-4 text-center border-b border-gray-100">
-                   <span id="member-action-name" class="font-bold text-gray-800 text-lg truncate block">User</span>
+               <div class="p-4 text-center border-b border-gray-100 dark:border-gray-800">
+                   <span id="member-action-name" class="font-bold text-gray-800 dark:text-gray-100 text-lg truncate block">User</span>
                </div>
                <div class="p-2 space-y-1">
                    <button id="btn-member-mention" class="w-full py-4 text-blue-600 text-[17px] active:bg-blue-50 rounded-lg text-center font-bold">💬 @Ta (提及此人)</button>
-                   <button id="btn-member-profile" class="w-full py-4 text-gray-800 text-[17px] active:bg-gray-100 rounded-lg text-center font-medium">👤 查看资料</button>
-                   <div class="h-[1px] bg-gray-100 my-1"></div>
-                   <button onclick="closeMemberActionModal()" class="w-full py-4 text-gray-500 text-[17px] active:bg-gray-100 rounded-lg text-center">取消</button>
+                   <button id="btn-member-profile" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">👤 查看资料</button>
+                   <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
+                   <button onclick="closeMemberActionModal()" class="w-full py-4 text-gray-500 dark:text-gray-400 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center">取消</button>
                </div>
            </div>
        </div>
 
                <!-- ================= 聊天记录导出弹窗 ================= -->
     <div id="export-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[90] flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
-            <div class="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
-                <h3 id="export-title" class="text-md font-bold text-gray-800 truncate">导出记录</h3>
-                <button onclick="closeExportModal()" class="text-gray-500 hover:text-gray-800 p-1">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex justify-between items-center shrink-0">
+                <h3 id="export-title" class="text-md font-bold text-gray-800 dark:text-gray-100 truncate">导出记录</h3>
+                <button onclick="closeExportModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
             <div class="p-5 space-y-5">
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">文件格式:</label>
+                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-2">文件格式:</label>
                     <div class="flex items-center space-x-4">
-                        <label class="flex items-center text-sm text-gray-700 cursor-pointer">
-                            <input type="radio" name="export-format" value="html" checked class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 mr-2"> HTML (推荐, 含图片)
+                        <label class="flex items-center text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+                            <input type="radio" name="export-format" value="html" checked class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-blue-500 mr-2"> HTML (推荐, 含图片)
                         </label>
-                        <label class="flex items-center text-sm text-gray-700 cursor-pointer">
-                            <input type="radio" name="export-format" value="txt" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 mr-2"> TXT (仅文字)
+                        <label class="flex items-center text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+                            <input type="radio" name="export-format" value="txt" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-blue-500 mr-2"> TXT (仅文字)
                         </label>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">导出范围:</label>
-                    <p id="export-target-desc" class="text-xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-100 font-mono break-all"></p>
+                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-1">导出范围:</label>
+                    <p id="export-target-desc" class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-800 font-mono break-all"></p>
                 </div>
                 <button onclick="actionWithPasswordVerification('exportChat')" class="w-full bg-green-500 text-white py-3 rounded-xl hover:bg-green-600 transition shadow font-bold active:scale-95 flex items-center justify-center">
                   <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> 验证密码并导出
@@ -1049,7 +1056,7 @@
                 const lowerUrl = url.toLowerCase();
                 // 识别常见图片后缀渲染为缩略图
                 if (lowerUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/)) {
-                    return `<a href="${url}" target="_blank" class="block mt-2 mb-1"><img src="${url}" class="max-w-full max-h-48 rounded-lg object-contain border border-gray-100 shadow-sm"></a>`;
+                    return `<a href="${url}" target="_blank" class="block mt-2 mb-1"><img src="${url}" class="max-w-full max-h-48 rounded-lg object-contain border border-gray-100 dark:border-gray-800 shadow-sm"></a>`;
                 }
                 // 普通链接
                 return `<a href="${url}" target="_blank" class="${isMe ? 'text-blue-200 hover:text-white' : 'text-blue-500 hover:text-blue-700'} underline break-all">${url}</a>`;
@@ -1365,7 +1372,7 @@
                     hideAddAccountArea();
                     accounts.forEach(acc => {
                         let div = document.createElement('div');
-                        div.className = "flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer transition shadow-sm bg-white";
+                        div.className = "flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:bg-gray-800 cursor-pointer transition shadow-sm bg-white dark:bg-gray-900";
                         let picUrl = formatAvatarUrl(acc.picture);
                         let avatar = picUrl ? `<img src="${picUrl}" class="w-10 h-10 rounded-full object-cover">` : `<div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">${acc.name?acc.name.charAt(0):'我'}</div>`;
                         let nameStr = acc.name || '未命名账号';
@@ -1375,7 +1382,7 @@
                             <div class="flex items-center space-x-3 flex-1 min-w-0" onclick="promptLogin('${acc.pubkey}')">
                                 ${avatar}
                                 <div class="flex-1 min-w-0 pr-2">
-                                    <div class="font-bold text-gray-800 text-sm truncate">${nameStr}</div>
+                                    <div class="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">${nameStr}</div>
                                     <div class="text-[11px] text-gray-400 font-mono truncate">${npubStr}</div>
                                 </div>
                             </div>
@@ -1827,10 +1834,10 @@
                 }
 
                 let div = document.createElement('div');
-                div.className = "flex items-center justify-between p-3 border-b border-gray-100 hover:bg-gray-50 transition rounded-lg";
+                div.className = "flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:bg-gray-800 transition rounded-lg";
                 div.innerHTML = `
                     <div class="flex-1 min-w-0 pr-2">
-                        <div class="text-sm font-medium text-gray-800 truncate flex items-center">
+                        <div class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate flex items-center">
                             ${url} ${trustHtml}
                         </div>
                         <div class="text-xs mt-1 flex items-center space-x-3">
@@ -2497,7 +2504,7 @@
                                 let btn = document.createElement('button');
                                 btn.className = "w-full flex items-center p-3 hover:bg-blue-50 active:bg-blue-100 rounded-lg transition border-b border-gray-50";
                                 btn.innerHTML = `<div class="w-10 h-10 rounded-full ${bgColor} text-white flex items-center justify-center font-bold mr-3">${icon}</div>
-                                                 <span class="text-sm font-medium text-gray-800">${escapeHTML(name)}</span>`;
+                                                 <span class="text-sm font-medium text-gray-800 dark:text-gray-100">${escapeHTML(name)}</span>`;
                                 // ------------------------------------
 
                                 // 动态绑定点击事件：根据模式走不同的逻辑
@@ -2778,10 +2785,10 @@
                             data.items.forEach(item => {
                                 let timeStr = new Date(item.t * 1000).toLocaleString();
                                 let div = document.createElement('div');
-                                div.className = "flex flex-col mb-3 bg-gray-50 rounded-lg p-3 border border-gray-100";
+                                div.className = "flex flex-col mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-800";
 
-                                let header = `<div class="flex justify-between items-center mb-1 border-b border-gray-200 pb-1">
-                                                <span class="font-bold text-gray-700 text-sm">${escapeHTML(item.n)}</span>
+                                let header = `<div class="flex justify-between items-center mb-1 border-b border-gray-200 dark:border-gray-700 pb-1">
+                                                <span class="font-bold text-gray-700 dark:text-gray-200 text-sm">${escapeHTML(item.n)}</span>
                                                 <span class="text-[10px] text-gray-400">${timeStr}</span>
                                               </div>`;
 
@@ -2806,14 +2813,14 @@
                                             if (subItem.i && !subC) subC = "[图片]";
                                         }
                                         if (subC.length > 20) subC = subC.substring(0, 20) + '...';
-                                        previews += `<div class="text-[11px] text-gray-500 truncate mt-0.5">${escapeHTML(subItem.n)}: ${escapeHTML(subC)}</div>`;
+                                        previews += `<div class="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">${escapeHTML(subItem.n)}: ${escapeHTML(subC)}</div>`;
                                     }
 
                                     // 渲染一个可点击的深灰色卡片，绑定 pushHistoryView (进入下一层)
                                     let encodedInner = encodeURIComponent(JSON.stringify(innerHistory));
                                     body = `
-                                    <div class="border border-gray-300 bg-white rounded-lg p-2.5 mt-2 cursor-pointer active:bg-gray-100 transition shadow-sm" onclick="pushHistoryView('${encodedInner}')">
-                                        <div class="font-bold text-[13px] text-gray-800 border-b border-gray-100 pb-1 mb-1.5 truncate">📑 ${escapeHTML(subTitle)}</div>
+                                    <div class="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 rounded-lg p-2.5 mt-2 cursor-pointer active:bg-gray-100 dark:bg-gray-950 transition shadow-sm" onclick="pushHistoryView('${encodedInner}')">
+                                        <div class="font-bold text-[13px] text-gray-800 dark:text-gray-100 border-b border-gray-100 dark:border-gray-800 pb-1 mb-1.5 truncate">📑 ${escapeHTML(subTitle)}</div>
                                         ${previews}
                                         <div class="text-[10px] text-blue-500 mt-2 pt-1 text-center font-medium">点击深入查看</div>
                                     </div>`;
@@ -2823,10 +2830,10 @@
                                     if (c.startsWith('{')) {
                                         try { let j = JSON.parse(c); c = j.text || ""; } catch(e){}
                                     }
-                                    body = `<div class="text-sm text-gray-800 whitespace-pre-wrap break-words mt-1 leading-relaxed">${linkifyAndRenderMedia(c, false)}</div>`;
+                                    body = `<div class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap break-words mt-1 leading-relaxed">${linkifyAndRenderMedia(c, false)}</div>`;
                                     if (item.i) {
                                         let imgSrc = `data:image/jpeg;base64,${item.i}`;
-                                        body += `<div class="mt-2"><img src="${imgSrc}" class="max-w-full rounded border border-gray-200 shadow-sm" onclick="openImageViewer('${imgSrc}')"></div>`;
+                                        body += `<div class="mt-2"><img src="${imgSrc}" class="max-w-full rounded border border-gray-200 dark:border-gray-700 shadow-sm" onclick="openImageViewer('${imgSrc}')"></div>`;
                                     }
                                 }
 
@@ -2909,7 +2916,7 @@
                 }
 
                 let div = document.createElement('div');
-                div.className = `p-3 md:p-4 flex items-center space-x-3 cursor-pointer border-b border-gray-100 transition ${isCurrent ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50 border-l-4 border-transparent active:bg-gray-100'}`;
+                div.className = `p-3 md:p-4 flex items-center space-x-3 cursor-pointer border-b border-gray-100 dark:border-gray-800 transition ${isCurrent ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50 dark:bg-gray-800 border-l-4 border-transparent active:bg-gray-100 dark:bg-gray-950'}`;
                 div.onclick = () => selectContact(pk);
 
                 let unread = unreadCounts[pk] || 0;
@@ -2943,9 +2950,9 @@
                 let cleanLastMsg = String(displayLast || "").substring(0, 20);
 
 
-                let strangerBadge = isStranger ? `<span class="ml-1.5 px-1 py-0.5 bg-gray-200 text-gray-500 text-[9px] rounded whitespace-nowrap align-middle">陌生人</span>` : '';
+                let strangerBadge = isStranger ? `<span class="ml-1.5 px-1 py-0.5 bg-gray-200 text-gray-500 dark:text-gray-400 text-[9px] rounded whitespace-nowrap align-middle">陌生人</span>` : '';
                 // 注意：只对 cleanLastMsg 进行 escapeHTML，防止把 mentionPrefix 的 span 标签也给转义了
-                div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 text-base md:text-sm truncate leading-tight">${escapeHTML(displayName)}${strangerBadge}</div><div class="text-sm md:text-xs text-gray-500 truncate mt-1">${mentionPrefix}${escapeHTML(cleanLastMsg)}</div></div>`;
+                div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 dark:text-gray-100 text-base md:text-sm truncate leading-tight">${escapeHTML(displayName)}${strangerBadge}</div><div class="text-sm md:text-xs text-gray-500 dark:text-gray-400 truncate mt-1">${mentionPrefix}${escapeHTML(cleanLastMsg)}</div></div>`;
                 list.appendChild(div);
             });
         }
@@ -3033,10 +3040,10 @@
                                 let timeStr = new Date(m.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ' ' + encIcon;
 
                                 let wrapper = document.createElement('div');
-                                wrapper.className = `flex w-full items-end ${isSelectMode ? 'cursor-pointer hover:bg-gray-100 p-1 rounded-lg transition-colors' : ''}`;
+                                wrapper.className = `flex w-full items-end ${isSelectMode ? 'cursor-pointer hover:bg-gray-100 dark:bg-gray-950 p-1 rounded-lg transition-colors' : ''}`;
                                 if (isSelectMode) wrapper.onclick = () => handleMsgClick(m.id);
 
-                                let selectHtml = isSelectMode ? `<div class="w-8 shrink-0 mr-1 flex items-center justify-center"><div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}">${isSelected ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}</div></div>` : '';
+                                let selectHtml = isSelectMode ? `<div class="w-8 shrink-0 mr-1 flex items-center justify-center"><div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'}">${isSelected ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}</div></div>` : '';
 
                                 // 1. 处理引述/回复 UI
                                 let quoteHtml = '';
@@ -3050,7 +3057,7 @@
                                         origName = orig.sender === pubKeyHex ? "我" : (profiles[orig.sender]?.name || "用户");
                                         if(origText.length > 25) origText = origText.substring(0, 25) + '...';
                                     }
-                                    quoteHtml = `<div class="mb-1.5 p-1.5 rounded bg-black bg-opacity-10 border-l-2 ${isMe ? 'border-blue-300 text-blue-100' : 'border-gray-400 text-gray-500'} text-[12px] cursor-pointer hover:opacity-80 transition" onclick="alert('TODO: 跳转定位原消息')">
+                                    quoteHtml = `<div class="mb-1.5 p-1.5 rounded bg-black bg-opacity-10 border-l-2 ${isMe ? 'border-blue-300 text-blue-100' : 'border-gray-400 text-gray-500 dark:text-gray-400'} text-[12px] cursor-pointer hover:opacity-80 transition" onclick="alert('TODO: 跳转定位原消息')">
                                         <span class="font-bold">${escapeHTML(origName)}:</span> ${escapeHTML(origText)}
                                     </div>`;
                                 }
@@ -3070,19 +3077,19 @@
                                            c = "[图片] " + c;
                                         }
                                         if(c.length > 20) c = c.substring(0, 20) + '...';
-                                        previews += `<div class="text-[11px] text-gray-500 truncate mt-0.5">${escapeHTML(item.n)}: ${escapeHTML(c)}</div>`;
+                                        previews += `<div class="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">${escapeHTML(item.n)}: ${escapeHTML(c)}</div>`;
                                     }
                                     // 把整个 payload 存在按钮上，以便弹窗打开
                                     contentHtml = `
-                                    <div class="border border-gray-200 bg-gray-50 rounded-lg p-2.5 cursor-pointer active:bg-gray-200 transition shadow-sm w-60" onclick="openHistoryViewer('${encodeURIComponent(m.text)}')">
-                                        <div class="font-bold text-[13px] text-gray-800 border-b border-gray-200 pb-1 mb-1.5 truncate">${escapeHTML(title)}</div>
+                                    <div class="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5 cursor-pointer active:bg-gray-200 transition shadow-sm w-60" onclick="openHistoryViewer('${encodeURIComponent(m.text)}')">
+                                        <div class="font-bold text-[13px] text-gray-800 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-1 mb-1.5 truncate">${escapeHTML(title)}</div>
                                         ${previews}
-                                        <div class="text-[10px] text-gray-400 mt-2 border-t border-gray-100 pt-1 text-center">点击查看全文</div>
+                                        <div class="text-[10px] text-gray-400 mt-2 border-t border-gray-100 dark:border-gray-800 pt-1 text-center">点击查看全文</div>
                                     </div>`;
                                 } else {
                                     contentHtml = linkifyAndRenderMedia(parsed.text || "", isMe);
                                     if (parsed.imageB64) {
-                                        let imgBorder = isMe ? 'border-blue-400' : 'border-gray-200';
+                                        let imgBorder = isMe ? 'border-blue-400' : 'border-gray-200 dark:border-gray-700';
                                         let imgSrc = `data:image/jpeg;base64,${parsed.imageB64}`;
                                         let imgHtml = `<img src="${imgSrc}" class="max-w-full max-h-48 rounded-lg object-contain shadow-sm border ${imgBorder} cursor-zoom-in" onclick="openImageViewer('${imgSrc}')" onload="if(this.parentNode.parentNode.parentNode.parentNode === document.getElementById('message-list')) document.getElementById('message-list').scrollTop = document.getElementById('message-list').scrollHeight">`;
                                         contentHtml += contentHtml ? `<div class="mt-2 mb-1">${imgHtml}</div>` : `<div class="mb-1">${imgHtml}</div>`;
@@ -3110,23 +3117,23 @@
                                   // 如果被 @ 了，名字旁边加个小徽章
                                   let atBadge = isTargetMe ? `<span class="ml-1.5 px-1.5 py-0.5 bg-red-100 text-red-600 border border-red-200 rounded font-bold text-[9px] shadow-sm">🎯 提到了你</span>` : '';
                                             // 核心修复：加上 onclick 事件并增加 hover 变色效果，提示用户可点击
-                                  senderNameHtml = `<div onclick="openMemberActionModal('${m.sender}', '${escapeHTML(sName)}')" class="text-[11px] text-gray-500 mb-1 ml-1 flex items-center cursor-pointer hover:text-blue-500 active:scale-95 transition-colors w-max select-none">${escapeHTML(sName)} ${atBadge}</div>`;
+                                  senderNameHtml = `<div onclick="openMemberActionModal('${m.sender}', '${escapeHTML(sName)}')" class="text-[11px] text-gray-500 dark:text-gray-400 mb-1 ml-1 flex items-center cursor-pointer hover:text-blue-500 active:scale-95 transition-colors w-max select-none">${escapeHTML(sName)} ${atBadge}</div>`;
                                   }
 
                               // 气泡样式逻辑：如果是别人 @ 我的消息，把背景变成醒目的浅红色
                               let bubbleStyleClass = isMe
-                                    ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-600'
-                                    : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100';
+                                    ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-600 dark:bg-blue-700 dark:border-blue-700'
+                                    : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700';
 
-                                if (isTargetMe) {
-                                    bubbleStyleClass = 'bg-red-50 text-red-900 rounded-tl-sm border border-red-300 shadow-md'; // 被 @ 时的专属骚气红色气泡
-                                }
+                              if (isTargetMe) {
+                                    bubbleStyleClass = 'bg-red-50 text-red-900 rounded-tl-sm border border-red-300 shadow-md dark:bg-red-900 dark:text-red-100 dark:border-red-700';
+                              }
 
                                 // 核心对齐：识别并渲染墓碑样式
                                 let isTombstone = (m.text === "🔒 该消息已被撤回");
                                 if (isTombstone) {
                                     contentHtml = `<span class="italic ${isMe ? 'text-blue-100' : 'text-gray-400'}">🔒 该消息已被撤回</span>`;
-                                    bubbleStyleClass = isMe ? 'bg-blue-400 text-white rounded-tr-sm border border-blue-400 opacity-80' : 'bg-gray-100 text-gray-500 rounded-tl-sm border border-gray-200 shadow-none';
+                                    bubbleStyleClass = isMe ? 'bg-blue-400 text-white rounded-tr-sm border border-blue-400 opacity-80' : 'bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 rounded-tl-sm border border-gray-200 dark:border-gray-700 shadow-none';
                                     quoteHtml = ''; // 撤回的消息强行隐藏引述层
                                 }
 
@@ -3336,9 +3343,9 @@
             }
 
             let avatarBox = document.getElementById('peer-modal-avatar');
-            avatarBox.classList.replace('bg-white', 'bg-transparent');
+            avatarBox.classList.replace('bg-white dark:bg-gray-900', 'bg-transparent');
             avatarBox.classList.replace('dark:bg-gray-700', 'bg-transparent');
-            avatarBox.classList.replace('bg-transparent', 'bg-white');
+            avatarBox.classList.replace('bg-transparent', 'bg-white dark:bg-gray-900');
 
             if (isGroup) {
                 let badgeIcon = prof.type === 1 ? '⚡' : (targetPk === OFFICIAL_GROUP.id ? '📢' : '🛡️');
@@ -3347,10 +3354,10 @@
             } else if(prof.picture) {
                 let picUrl = formatAvatarUrl(prof.picture);
                 avatarBox.innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
-                avatarBox.classList.replace('bg-white', 'bg-transparent');
+                avatarBox.classList.replace('bg-white dark:bg-gray-900', 'bg-transparent');
             } else {
                 avatarBox.innerHTML = prof.name ? prof.name.substring(0,1) : '?';
-                avatarBox.classList.add('bg-white', 'dark:bg-gray-700');
+                avatarBox.classList.add('bg-white dark:bg-gray-900', 'dark:bg-gray-700');
             }
 
             let extraContainer = document.getElementById('peer-extra-info');
@@ -3397,31 +3404,31 @@
                 if (prof.type === 1) badge.innerText = '共享群组';
                 else if (targetPk === OFFICIAL_GROUP.id) badge.innerText = '测试公共频道';
                 else badge.innerText = '加密群组';
-                badge.classList.replace('bg-gray-100', 'bg-indigo-100');
-                badge.classList.replace('text-gray-500', 'text-indigo-600');
+                badge.classList.replace('bg-gray-100 dark:bg-gray-950', 'bg-indigo-100');
+                badge.classList.replace('text-gray-500 dark:text-gray-400', 'text-indigo-600');
                 badge.classList.add('dark:bg-indigo-900/30', 'dark:text-indigo-400');
 
                 actionArea.innerHTML = `
                     <button onclick="generateInviteLink('${targetPk}')" class="w-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50 py-3 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition shadow-sm font-bold active:scale-95 text-sm flex items-center justify-center mb-3">🎫 生成/查看邀请码</button>
-                    <button onclick="exitGroupFromModal('${targetPk}')" class="w-full bg-white dark:bg-gray-800 text-red-500 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-gray-700 transition shadow-sm font-bold border border-red-200 dark:border-red-800 active:scale-95 text-sm flex items-center justify-center">👋 退出群聊 (清除数据)</button>
+                    <button onclick="exitGroupFromModal('${targetPk}')" class="w-full bg-white dark:bg-gray-900 dark:bg-gray-800 text-red-500 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-gray-700 transition shadow-sm font-bold border border-red-200 dark:border-red-800 active:scale-95 text-sm flex items-center justify-center">👋 退出群聊 (清除数据)</button>
                 `;
             } else if (targetPk === pubKeyHex) {
                 badge.classList.remove('hidden');
                 badge.innerText = '备忘录';
-                badge.classList.replace('bg-gray-100', 'bg-blue-100');
-                badge.classList.replace('text-gray-500', 'text-blue-600');
+                badge.classList.replace('bg-gray-100 dark:bg-gray-950', 'bg-blue-100');
+                badge.classList.replace('text-gray-500 dark:text-gray-400', 'text-blue-600');
                 badge.classList.add('dark:bg-blue-900/30', 'dark:text-blue-400');
                 actionArea.innerHTML = `<div class="text-center text-gray-400 text-xs py-3 font-medium">这是您自己的账户，可作为文件传输助手或备忘录使用。</div>`;
             } else if(isStranger) {
                 badge.classList.remove('hidden');
                 badge.innerText = '陌生人';
-                badge.classList.replace('bg-blue-100', 'bg-gray-100');
-                badge.classList.replace('text-blue-600', 'text-gray-500');
+                badge.classList.replace('bg-blue-100', 'bg-gray-100 dark:bg-gray-950');
+                badge.classList.replace('text-blue-600', 'text-gray-500 dark:text-gray-400');
 
                 let isBlocked = blocklist.has(targetPk);
                 let blockBtn = isBlocked
-                    ? `<button onclick="toggleBlockUser('${targetPk}', false)" class="w-full mt-3 bg-white dark:bg-gray-700 text-green-600 py-3 rounded-xl hover:bg-green-50 dark:hover:bg-gray-600 transition border border-green-200 dark:border-green-800 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
-                    : `<button onclick="toggleBlockUser('${targetPk}', true)" class="w-full mt-3 bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-300 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition border border-gray-300 dark:border-gray-600 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
+                    ? `<button onclick="toggleBlockUser('${targetPk}', false)" class="w-full mt-3 bg-white dark:bg-gray-900 dark:bg-gray-700 text-green-600 py-3 rounded-xl hover:bg-green-50 dark:hover:bg-gray-600 transition border border-green-200 dark:border-green-800 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
+                    : `<button onclick="toggleBlockUser('${targetPk}', true)" class="w-full mt-3 bg-white dark:bg-gray-900 dark:bg-gray-700 text-gray-500 dark:text-gray-400 dark:text-gray-300 py-3 rounded-xl hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-600 transition border border-gray-300 dark:border-gray-600 dark:border-gray-600 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
 
                 actionArea.innerHTML = `
                     <button onclick="addContactFromModal('${targetPk}')" class="w-full bg-green-500 text-white py-3 rounded-xl hover:bg-green-600 transition shadow font-bold active:scale-95 text-sm flex items-center justify-center">添加为好友</button>
@@ -3431,8 +3438,8 @@
                 badge.classList.add('hidden');
                 let isBlocked = blocklist.has(targetPk);
                 let blockBtn = isBlocked
-                    ? `<button onclick="toggleBlockUser('${targetPk}', false)" class="w-full mt-3 bg-white dark:bg-gray-700 text-green-600 py-3 rounded-xl hover:bg-green-50 dark:hover:bg-gray-600 transition border border-green-200 dark:border-green-800 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
-                    : `<button onclick="toggleBlockUser('${targetPk}', true)" class="w-full mt-3 bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-300 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition border border-gray-300 dark:border-gray-600 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
+                    ? `<button onclick="toggleBlockUser('${targetPk}', false)" class="w-full mt-3 bg-white dark:bg-gray-900 dark:bg-gray-700 text-green-600 py-3 rounded-xl hover:bg-green-50 dark:hover:bg-gray-600 transition border border-green-200 dark:border-green-800 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>`
+                    : `<button onclick="toggleBlockUser('${targetPk}', true)" class="w-full mt-3 bg-white dark:bg-gray-900 dark:bg-gray-700 text-gray-500 dark:text-gray-400 dark:text-gray-300 py-3 rounded-xl hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-600 transition border border-gray-300 dark:border-gray-600 dark:border-gray-600 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
 
                 actionArea.innerHTML = `
                     <button onclick="removeContactFromModal('${targetPk}')" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition shadow-sm font-bold border border-red-200 dark:border-red-800 active:scale-95 text-sm flex items-center justify-center">彻底删除好友</button>
@@ -3841,7 +3848,7 @@
                 listDiv.innerHTML += `
                     <button onclick="insertMention('${escapeHTML(name)}', '${pk}')" class="w-full flex items-center p-3 hover:bg-blue-50 active:bg-blue-100 rounded-lg transition border-b border-gray-50">
                         <div class="w-10 h-10 rounded-full bg-gray-300 text-white flex items-center justify-center font-bold mr-3">👤</div>
-                        <span class="text-sm font-medium text-gray-800">${escapeHTML(name)}</span>
+                        <span class="text-sm font-medium text-gray-800 dark:text-gray-100">${escapeHTML(name)}</span>
                     </button>
                 `;
             });
@@ -3894,15 +3901,15 @@
             blocklist.forEach(pk => {
                 let p = profiles[pk] || { name: nt.nip19.npubEncode(pk).substring(0,10)+'...' };
                 let div = document.createElement('div');
-                div.className = "flex justify-between items-center p-3 border-b border-gray-100 hover:bg-gray-50 rounded-lg";
+                div.className = "flex justify-between items-center p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:bg-gray-800 rounded-lg";
                 div.innerHTML = `
                     <div class="flex items-center space-x-3 min-w-0">
                         <div class="w-10 h-10 bg-red-100 text-red-500 rounded-full flex items-center justify-center font-bold shrink-0">
                             ${p.picture ? `<img src="${formatAvatarUrl(p.picture)}" class="w-full h-full rounded-full object-cover opacity-50">` : '🚫'}
                         </div>
-                        <div class="truncate text-sm font-medium text-gray-800">${escapeHTML(p.name)}</div>
+                        <div class="truncate text-sm font-medium text-gray-800 dark:text-gray-100">${escapeHTML(p.name)}</div>
                     </div>
-                    <button onclick="toggleBlockUser('${pk}', false); renderBlocklist();" class="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-green-100 hover:text-green-600 transition shrink-0 shadow-sm border border-gray-200 font-bold active:scale-95">解除屏蔽</button>
+                    <button onclick="toggleBlockUser('${pk}', false); renderBlocklist();" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-950 text-gray-600 dark:text-gray-300 text-xs rounded-lg hover:bg-green-100 hover:text-green-600 transition shrink-0 shadow-sm border border-gray-200 dark:border-gray-700 font-bold active:scale-95">解除屏蔽</button>
                 `;
                 container.appendChild(div);
             });
@@ -4179,6 +4186,36 @@
                               }
                           } catch (e) { alert("公钥格式错误"); }
                         }
+
+// ================= 暗色/淡色主题切换引擎 =================
+        function initTheme() {
+            // 读取本地存储，如果没有则跟随系统偏好
+            let theme = localStorage.getItem('dage_theme');
+            if (!theme) {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            applyTheme(theme);
+        }
+
+        function toggleTheme() {
+            let current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            let next = current === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-toggle-btn').innerText = '☀️ 切换淡色';
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('theme-toggle-btn').innerText = '🌙 切换暗色';
+            }
+            localStorage.setItem('dage_theme', theme);
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', initTheme);
     </script>
 </body>
 </html>
