@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.36</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.33</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -1425,49 +1425,65 @@
               }
 
               async function submitPwdVerify() {
-                let pwd = document.getElementById('verify-pwd').value;
-                if (!pwd) return;
+                  let pwd = document.getElementById('verify-pwd').value;
+                  if (!pwd) return;
 
-                if (pwdContext === 'login_account' && accountToLogin) {
-                    let acc = accounts.find(a => a.pubkey === accountToLogin);
-                    try {
-                        privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
-                        pubKeyHex = accountToLogin;
+                  // 核心修复 1：拦截浏览器禁用的底层加密环境
+                  if (!window.crypto || !window.crypto.subtle) {
+                      alert("环境错误：当前浏览器禁用了 WebCrypto 加密引擎。\n请确保使用 HTTPS 访问，或在本地 localhost (127.0.0.1) 下运行！");
+                      return;
+                  }
 
-                        // ================= 新增：写入 Session =================
-                        sessionStorage.setItem('dage_session_pub', pubKeyHex);
-                        sessionStorage.setItem('dage_session_priv', privKeyHex);
+                  if (pwdContext === 'login_account' && accountToLogin) {
+                      let acc = accounts.find(a => a.pubkey === accountToLogin);
+                      try {
+                          if (!acc) throw new Error("本地账号数据异常丢失");
+                          privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
+                          pubKeyHex = accountToLogin;
+                          closePwdVerifyModal();
+                          await initializeApp(); // 如果这里崩溃，也会被 catch
+                      } catch(e) {
+                          console.error(e);
+                          alert("登录失败！\n真实原因：" + (e.message || e));
+                      }
+                  } else if (pwdContext === 'action_verify') {
+                      let acc = accounts.find(a => a.pubkey === pubKeyHex);
+                      try {
+                          if (!acc) throw new Error("本地账号数据异常丢失");
+                          let realSk = await aesDecrypt(acc.encPrivKey, pwd);
+                          closePwdVerifyModal();
+                          executePendingKeyAction(realSk);
+                      } catch(e) {
+                          console.error(e);
+                          alert("验证失败！\n真实原因：" + (e.message || e));
+                      }
+                  }
+              }
 
-                        closePwdVerifyModal();
-                        await initializeApp();
-                    } catch(e) { alert("密码错误，解密失败！"); }
-                } else if (pwdContext === 'action_verify') {
-                    let acc = accounts.find(a => a.pubkey === pubKeyHex);
-                    try {
-                        let realSk = await aesDecrypt(acc.encPrivKey, pwd);
-                        closePwdVerifyModal();
-                        executePendingKeyAction(realSk);
-                    } catch(e) { alert("密码验证失败！"); }
-                }
-            }
-
-            async function unlockApp() {
+              async function unlockApp() {
               let pwd = document.getElementById('lock-pwd').value;
               if(!pwd) return;
+
+              // 核心修复 1：拦截浏览器禁用的底层加密环境
+              if (!window.crypto || !window.crypto.subtle) {
+                  alert("环境错误：当前浏览器禁用了 WebCrypto 加密引擎。\n请确保使用 HTTPS 访问，或在本地 localhost (127.0.0.1) 下运行！");
+                  return;
+              }
+
               let acc = accounts.find(a => a.pubkey === pubKeyHex);
               try {
+                  if (!acc) throw new Error("本地账号数据异常丢失");
                   privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
                   isLocked = false;
-
-                  // ================= 新增：写入 Session =================
-                  sessionStorage.setItem('dage_session_pub', pubKeyHex);
-                  sessionStorage.setItem('dage_session_priv', privKeyHex);
-
                   document.getElementById('lock-screen').classList.add('hidden');
                   document.getElementById('app-screen').classList.remove('hidden');
                   updateActivity();
                   initRelayConnection();
-              } catch(e) { alert("解锁密码错误！"); document.getElementById('lock-pwd').value=''; }
+              } catch(e) {
+                  console.error(e);
+                  alert("解锁失败！\n真实原因：" + (e.message || e));
+                  document.getElementById('lock-pwd').value='';
+              }
           }
 
         function actionWithPasswordVerification(actionStr) {
@@ -1668,12 +1684,12 @@
                         let normalGids = Object.keys(groups).filter(gid => groups[gid].type === 0);
 
                         const req = ["REQ", "sub-" + Date.now(),
-                            { kinds: [0], authors: [pubKeyHex] },
-                            { kinds: [4, 1059], "#p":[pubKeyHex], limit: 30 },
-                            { kinds: [4], authors: [pubKeyHex], limit: 30 }
+                            { kinds:[0, 5], authors: [pubKeyHex] },
+                            { kinds:[4, 5, 1059], "#p":[pubKeyHex], limit: 30 },
+                            { kinds:[4, 5], authors: [pubKeyHex], limit: 30 }
                         ];
-                        if (ghostGids.length > 0) req.push({ kinds: [1059], "#p": ghostGids, limit: 30 });
-                        if (normalGids.length > 0) req.push({ kinds: [42, 30078], "#g": normalGids, limit: 30 });
+                        if (ghostGids.length > 0) req.push({ kinds: [5, 1059], "#p": ghostGids, limit: 30 });
+                        if (normalGids.length > 0) req.push({ kinds: [5, 42, 30078], "#g": normalGids, limit: 30 });
 
                         ws.send(JSON.stringify(req));
                         ws.send(JSON.stringify(["REQ", "sync3-" + Date.now(), { kinds:[3], authors: [pubKeyHex], limit: 1 }]));
@@ -2025,11 +2041,12 @@
 
                 if (newlyAddedGhostGids.length > 0 || newlyAddedNormalGids.length > 0) {
                     let appendReq = ["REQ", "sub-append-groups-" + Date.now()];
-                    if (newlyAddedGhostGids.length > 0) appendReq.push({ kinds: [1059], "#p": newlyAddedGhostGids, limit: 100 });
-                    if (newlyAddedNormalGids.length > 0) appendReq.push({ kinds: [42, 30078], "#g": newlyAddedNormalGids, limit: 100 });
+                    if (newlyAddedGhostGids.length > 0) appendReq.push({ kinds: [5, 1059], "#p": newlyAddedGhostGids, limit: 100 });
+                    if (newlyAddedNormalGids.length > 0) appendReq.push({ kinds:[5, 42, 30078], "#g": newlyAddedNormalGids, limit: 100 });
                     // 向多节点广播追加订阅
                     broadcastToRelays(JSON.stringify(appendReq));
                 }
+
 
                 let allPksToFetch = [...new Set([...contacts, ...Object.keys(messages)])];
                 if (allPksToFetch.length > 0) {
@@ -2841,7 +2858,10 @@
 
                 let mCount = mentionCounts[pk] || 0;
                 let mentionPrefix = mCount > 0 ? `<span class="text-red-500 font-bold">[有人@我]</span> ` : '';
-                let cleanLastMsg = displayLast.substring(0, 20); // 提取纯文本
+                // 核心修复 2：强转字符串，防止底层特殊状态引发 TypeError 导致整个程序崩溃
+                let cleanLastMsg = String(displayLast || "").substring(0, 20);
+
+
                 let strangerBadge = isStranger ? `<span class="ml-1.5 px-1 py-0.5 bg-gray-200 text-gray-500 text-[9px] rounded whitespace-nowrap align-middle">陌生人</span>` : '';
                 // 注意：只对 cleanLastMsg 进行 escapeHTML，防止把 mentionPrefix 的 span 标签也给转义了
                 div.innerHTML = `${avatarHtml}<div class="flex-1 min-w-0"><div class="font-medium text-gray-800 text-base md:text-sm truncate leading-tight">${escapeHTML(displayName)}${strangerBadge}</div><div class="text-sm md:text-xs text-gray-500 truncate mt-1">${mentionPrefix}${escapeHTML(cleanLastMsg)}</div></div>`;
@@ -3861,8 +3881,8 @@
                             renderContacts();
                             selectContact(gid);
 
-                            let appendReq =["REQ", "sub-append-new-" + gid, { kinds: [42, 30078], "#g": [gid], limit: 50 }];
-                            if (isGhost) appendReq[2] = { kinds: [1059], "#p": [gid], limit: 50 };
+                            let appendReq = ["REQ", "sub-append-new-" + gid, { kinds:[5, 42, 30078], "#g": [gid], limit: 50 }];
+                            if (isGhost) appendReq[2] = { kinds: [5, 1059], "#p": [gid], limit: 50 };
                             broadcastToRelays(JSON.stringify(appendReq));
 
                             // 核心对齐：打招呼机制 (共享密钥群禁发)
@@ -3954,8 +3974,8 @@
                         alert(`✅ 成功加入群聊：${groupName}`);
 
                         // 发送实时追加订阅，无需刷新
-                        let appendReq =["REQ", "sub-append-join-" + gid, { kinds: [42, 30078], "#g":[gid], limit: 50 }];
-                        if (gType === 1) appendReq[2] = { kinds: [1059], "#p": [gid], limit: 50 };
+                        let appendReq =["REQ", "sub-append-join-" + gid, { kinds: [5, 42, 30078], "#g":[gid], limit: 50 }];
+                        if (gType === 1) appendReq[2] = { kinds:[5, 1059], "#p": [gid], limit: 50 };
                         broadcastToRelays(JSON.stringify(appendReq));
 
                         renderContacts();
