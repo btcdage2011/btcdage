@@ -33,7 +33,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white dark:bg-gray-900 md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.37</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.36</div>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -149,6 +149,11 @@
                                         <span id="protocol-label" class="text-[10px] md:text-xs text-gray-600 dark:text-gray-300 font-bold w-10 text-center tracking-wide">NIP-59</span>
                                     </div>
 
+                                    <!-- 新增：搜索当前会话按钮 -->
+                                    <button onclick="openSearchModal(currentChatPk)" title="搜索当前会话" class="text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600 px-2 md:px-3 py-2 bg-white dark:bg-gray-900 rounded-lg active:bg-gray-50 dark:active:bg-gray-800 transition shadow-sm border border-gray-200 dark:border-gray-700 flex items-center font-bold">
+                                        <svg class="w-4 h-4 md:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                        <span class="hidden md:inline">搜索</span>
+                                    </button>
                                     <!-- 新增：导出当前会话按钮 (移动端隐藏文字只显图标，避免拥挤) -->
                                     <button onclick="openExportModal(currentChatPk)" title="导出当前会话" class="text-xs text-blue-600 hover:text-blue-700 px-2 md:px-3 py-2 bg-blue-50 rounded-lg active:bg-blue-100 transition shadow-sm border border-blue-100 flex items-center font-bold">
                                         <svg class="w-4 h-4 md:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -636,7 +641,7 @@
         <div id="search-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[85] flex items-center justify-center p-4">
             <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col h-[75vh] overflow-hidden">
                 <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
-                    <h3 class="text-md font-bold text-gray-800 dark:text-gray-100">🔍 全局搜索</h3>
+                    <h3 id="search-modal-title" class="text-md font-bold text-gray-800 dark:text-gray-100 truncate">🔍 全局搜索</h3>
                     <button onclick="closeSearchModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1 transition active:scale-95">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
@@ -3252,18 +3257,47 @@
       }
 
           // ================= 搜索与定位控制器 =================
-          function openSearchModal() {
-              document.getElementById('search-keyword-input').value = '';
-              document.getElementById('search-results-container').innerHTML = '';
-              document.getElementById('search-status-text').innerText = '请输入关键词在本地加密内存中检索';
-              document.getElementById('search-modal').classList.remove('hidden');
-              setTimeout(() => document.getElementById('search-keyword-input').focus(), 100);
-              ModalManager.push('searchModal', closeSearchModal);
+          // 全局变量：记录当前是在搜索哪个会话（如果为 null，则是全局搜索）
+          let currentSearchTargetPk = null;
+
+          function openSearchModal(targetPk = null) {
+              currentSearchTargetPk = targetPk;
+              let titleEl = document.getElementById("search-modal-title");
+
+              // 根据是否传入了目标会话，动态改变弹窗标题
+              if (targetPk) {
+                  let isGroup = !!groups[targetPk];
+                  let chatName = "未知用户";
+                  if (isGroup) {
+                      chatName = groups[targetPk].name;
+                  } else if (profiles[targetPk] && profiles[targetPk].name) {
+                      chatName = profiles[targetPk].name;
+                  }
+                  if (targetPk === pubKeyHex) {
+                      let myName = (profiles[pubKeyHex] && profiles[pubKeyHex].name) ? profiles[pubKeyHex].name : "我";
+                      chatName = myName + " (备忘录)";
+                  }
+                  titleEl.innerText = "🔍 搜索: " + chatName;
+              } else {
+                  titleEl.innerText = "🔍 全局搜索";
+              }
+
+              document.getElementById("search-keyword-input").value = "";
+              document.getElementById("search-results-container").innerHTML = "";
+              document.getElementById("search-status-text").innerText = "请输入关键词在本地加密内存中检索";
+              document.getElementById("search-modal").classList.remove("hidden");
+
+              setTimeout(function() {
+                  document.getElementById("search-keyword-input").focus();
+              }, 100);
+
+              ModalManager.push("searchModal", closeSearchModal);
           }
 
           function closeSearchModal(fromPopState = false) {
-              document.getElementById('search-modal').classList.add('hidden');
-              if (fromPopState !== true) ModalManager.pop('searchModal');
+              document.getElementById("search-modal").classList.add("hidden");
+              currentSearchTargetPk = null; // 弹窗关闭时重置追踪变量
+              if (fromPopState !== true) ModalManager.pop("searchModal");
           }
 
           function performSearch() {
@@ -3282,13 +3316,15 @@
 
               // 遍历所有会话的加密缓存 (内存中明文)
               for (let chatPk in messages) {
+                  // 【核心新增】：如果指定了特定会话，跳过所有其他会话！
+                  if (currentSearchTargetPk && chatPk !== currentSearchTargetPk) continue;
+
                   let msgs = messages[chatPk];
                   if (!msgs || msgs.length === 0) continue;
 
                   let isGroup = !!groups[chatPk];
                   let chatName = "未知用户";
 
-                  // 避免编辑器语法高亮崩溃，提取所有判断逻辑
                   if (isGroup) {
                       chatName = groups[chatPk].name;
                   } else if (profiles[chatPk] && profiles[chatPk].name) {
@@ -3332,7 +3368,7 @@
                   }
               }
 
-              results.sort((a, b) => b.time - a.time);
+              results.sort(function(a, b) { return b.time - a.time; });
 
               if (results.length === 0) {
                   statusText.innerText = "📭 未找到匹配的结果";
@@ -3341,11 +3377,10 @@
 
               statusText.innerText = "✅ 找到 " + results.length + " 条相关记录";
 
-              results.forEach(res => {
+              results.forEach(function(res) {
                   let timeStr = new Date(res.time * 1000).toLocaleString();
                   let snippet = res.text;
 
-                  // 智能高亮与截取上下文
                   let idx = snippet.toLowerCase().indexOf(keyword);
                   if (idx > -1) {
                       let start = Math.max(0, idx - 15);
@@ -3357,7 +3392,7 @@
 
                   let div = document.createElement("div");
                   div.className = "p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-800 transition shadow-sm active:scale-95";
-                  div.onclick = () => {
+                  div.onclick = function() {
                       closeSearchModal();
                       jumpToMessage(res.chatPk, res.msgId);
                   };
@@ -3368,7 +3403,6 @@
                   }
                   if (res.chatPk === OFFICIAL_GROUP.id) icon = "📡";
 
-                  // 高亮替换正则，避免模板字符串嵌套引发崩溃
                   let highlightRegex = new RegExp(escapeHTML(keyword), "gi");
                   let highlightSnippet = escapeHTML(snippet).replace(highlightRegex, function(match) {
                       return '<span class="bg-yellow-300 dark:bg-yellow-600 text-yellow-900 dark:text-yellow-50 font-bold rounded px-1">' + match + '</span>';
