@@ -401,7 +401,7 @@
       </div>
 
     <!-- ================= 设置密码 弹窗 ================= -->
-    <div id="pwd-setup-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[70] flex items-center justify-center p-4">
+    <div id="pwd-setup-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[150] flex items-center justify-center p-4">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
             <h3 class="text-lg font-bold text-gray-800 mb-2" id="pwd-setup-title">设置安全密码</h3>
             <p class="text-sm text-gray-500 mb-5" id="pwd-setup-desc">此密码用于本地高强度加密保护您的私钥。以后登录或解锁都需使用。密码仅存在本地，遗忘无法找回！</p>
@@ -417,7 +417,7 @@
     </div>
 
     <!-- ================= 验证密码 弹窗 (查看私钥 / 登录账号) ================= -->
-    <div id="pwd-verify-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[70] flex items-center justify-center p-4">
+    <div id="pwd-verify-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[150] flex items-center justify-center p-4">
         <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm">
             <h3 class="text-lg font-bold text-gray-800 mb-2">身份验证</h3>
             <p class="text-sm text-gray-500 mb-5">请输入该账号的安全密码。</p>
@@ -1499,11 +1499,14 @@
         }
 
         function syncLocalEncryptedCache() {
-                    saveEncryptedData('hidden_ids', Array.from(hiddenMsgsSet));
-                    saveEncryptedData('msg_cache', messages);
-                    saveEncryptedData('unread_counts', unreadCounts);
-                    saveEncryptedData('groups_cache', groups); // 保存群组
-                }
+            saveEncryptedData('hidden_ids', Array.from(hiddenMsgsSet));
+            saveEncryptedData('msg_cache', messages);
+            saveEncryptedData('unread_counts', unreadCounts);
+            saveEncryptedData('groups_cache', groups);
+            // === 新增：保存个人资料和联系人列表，解决重启变陌生人的问题 ===
+            saveEncryptedData('profiles_cache', profiles);
+            saveEncryptedData('contacts_cache', contacts);
+        }
 
         // ================= 初始化与登录 =================
         window.onload = async () => {
@@ -1548,6 +1551,9 @@
             messages = await loadEncryptedData('msg_cache', {});
             unreadCounts = await loadEncryptedData('unread_counts', {});
             groups = await loadEncryptedData('groups_cache', {}); // 载入群组
+            // === 新增：优先从本地加密缓存中读取资料和好友列表 ===
+            profiles = await loadEncryptedData('profiles_cache', {});
+            contacts = await loadEncryptedData('contacts_cache', []);
             // === 新增：注入官方测试频道 ===
             let exitedOfficial = localStorage.getItem(`dage_exited_official_${pubKeyHex}`);
             if (exitedOfficial !== '1' && !groups[OFFICIAL_GROUP.id]) {
