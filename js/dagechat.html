@@ -33,7 +33,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white dark:bg-gray-900 md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.36</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.37</div>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -363,6 +363,11 @@
                     <button id="theme-toggle-btn" onclick="toggleTheme()" class="w-full bg-gray-100 dark:bg-gray-950 dark:bg-gray-800 text-gray-700 dark:text-gray-200 dark:text-gray-300 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition border border-gray-300 dark:border-gray-600 dark:border-gray-600 shadow-sm flex items-center justify-center active:scale-95 mt-2">
                         🌙 切换暗色
                     </button>
+                    <button onclick="openChangePwdModal()" class="w-full bg-white dark:bg-gray-900 text-red-500 py-2 rounded-lg text-xs font-bold hover:bg-red-50 dark:hover:bg-gray-800 transition border border-red-200 dark:border-red-800 shadow-sm flex items-center justify-center active:scale-95 mt-2">
+                        🔑 修改本地登录密码
+                    </button>
+
+
                 </div>
 
                   <div class="flex space-x-3">
@@ -387,9 +392,22 @@
                       </div>
                   </div>
 
-                  <div>
-                      <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">头像链接 (Picture URL)</label>
-                      <input type="text" id="edit-avatar" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                  <div class="flex items-center space-x-4">
+                      <!-- 点击上传头像的 UI -->
+                      <div class="relative shrink-0 cursor-pointer group" onclick="document.getElementById('avatar-upload').click()" title="点击上传本地头像">
+                          <div id="profile-avatar-preview" class="w-14 h-14 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden flex items-center justify-center border border-gray-300 dark:border-gray-600 shadow-sm text-gray-400 text-xs">
+                              无
+                          </div>
+                          <div class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                          </div>
+                          <!-- 隐藏的 File Input -->
+                          <input type="file" id="avatar-upload" accept="image/*" class="hidden" onchange="handleAvatarUpload(event)">
+                      </div>
+                      <div class="flex-1 min-w-0">
+                          <label class="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">头像数据 (支持本地传图自动生成)</label>
+                          <input type="text" id="edit-avatar" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https:// 或 Base64" oninput="updateProfileAvatarPreview()">
+                      </div>
                   </div>
 
                   <div>
@@ -452,6 +470,23 @@
             </div>
         </div>
     </div>
+
+    <!-- ================= 修改密码 弹窗 ================= -->
+        <div id="change-pwd-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[160] flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">修改本地密码</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-5">密码仅用于本地加密。修改后，下次登录需使用新密码。</p>
+                <div class="space-y-4">
+                    <input type="password" id="change-pwd-old" placeholder="当前旧密码" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    <input type="password" id="change-pwd-new" placeholder="新密码 (至少6位)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    <input type="password" id="change-pwd-confirm" placeholder="再次确认新密码" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none" onkeypress="if(event.key==='Enter') submitChangePwd()">
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button onclick="closeChangePwdModal()" class="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-950 rounded-lg transition">取消</button>
+                    <button onclick="submitChangePwd()" class="px-5 py-2.5 text-sm font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition shadow-sm active:scale-95">确定修改</button>
+                </div>
+            </div>
+        </div>
 
     <!-- ================= Relay 多节点管理弹窗 ================= -->
     <div id="relay-manager-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[80] flex items-center justify-center p-4">
@@ -1666,6 +1701,126 @@
           }, 1500);
       }
 
+// ================= 浏览器原生系统通知 =================
+        function requestNotificationPermission() {
+            if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+                Notification.requestPermission();
+            }
+        }
+
+        function showSystemNotification(title, bodyText) {
+            if (!("Notification" in window)) return;
+            if (Notification.permission === "granted") {
+                let safeBody = bodyText.replace(/<[^>]*>?/gm, ''); // 过滤掉可能存在的HTML标签
+                if (safeBody.length > 50) safeBody = safeBody.substring(0, 50) + "...";
+                let n = new Notification(title, { body: safeBody });
+                // 自动关闭，免得堆积
+                setTimeout(function() { n.close(); }, 5000);
+            }
+        }
+
+        // ================= 全局快捷键：Ctrl+V 粘贴图片直接发送 =================
+        window.addEventListener('paste', function(e) {
+            // 如果处于锁定状态，或者没有进入聊天界面，不响应粘贴发送
+            if (!currentChatPk || isLocked) return;
+
+            // 如果焦点在其他非聊天的 input/textarea 里，不要抢夺粘贴事件
+            let activeEl = document.activeElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+                if (activeEl.id !== 'msg-input') return;
+            }
+
+            if (e.clipboardData && e.clipboardData.items) {
+                for (let i = 0; i < e.clipboardData.items.length; i++) {
+                    if (e.clipboardData.items[i].type.indexOf('image') !== -1) {
+                        let file = e.clipboardData.items[i].getAsFile();
+                        processImageFile(file, 1000, 0.7, function(b64) {
+                            pendingImageB64 = b64;
+                            document.getElementById('image-preview-area').classList.remove('hidden');
+                            document.getElementById('image-preview-img').src = "data:image/jpeg;base64," + b64;
+                        });
+                        e.preventDefault();
+                        break;
+                    }
+                }
+            }
+        });
+
+        // ================= 重构：统一的图片安全重绘与高压引擎 =================
+        function processImageFile(file, maxSide, quality, callback) {
+            if (!file || !file.type.match('image.*')) {
+                alert("请选择有效的图片文件！");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width;
+                    let h = img.height;
+
+                    if (Math.max(w, h) > maxSide) {
+                        const ratio = maxSide / Math.max(w, h);
+                        w = Math.floor(w * ratio);
+                        h = Math.floor(h * ratio);
+                    }
+
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+
+                    // 防毒安全层：抹除 Alpha 透明通道
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    let b64Data = dataUrl.split(',')[1];
+                    callback(b64Data);
+                }
+                img.onerror = function() { alert("图片读取失败或已损坏！"); }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        // 修改原有的 handleImageSelect，让它复用核心引擎
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            processImageFile(file, 1000, 0.7, function(b64) {
+                pendingImageB64 = b64;
+                document.getElementById('image-preview-area').classList.remove('hidden');
+                document.getElementById('image-preview-img').src = "data:image/jpeg;base64," + b64;
+            });
+            event.target.value = '';
+        }
+
+        // ================= 头像专属的高强度压缩上传逻辑 =================
+        function handleAvatarUpload(event) {
+            const file = event.target.files[0];
+            // 头像要求极小，最大边长 200，质量压缩到 0.8
+            processImageFile(file, 200, 0.8, function(b64) {
+                let fullUrl = "data:image/jpeg;base64," + b64;
+                document.getElementById('edit-avatar').value = fullUrl;
+                updateProfileAvatarPreview();
+            });
+            event.target.value = '';
+        }
+
+        function updateProfileAvatarPreview() {
+            let val = document.getElementById('edit-avatar').value.trim();
+            let previewBox = document.getElementById('profile-avatar-preview');
+            if (val) {
+                let picUrl = formatAvatarUrl(val);
+                previewBox.innerHTML = '<img src="' + picUrl + '" class="w-full h-full object-cover">';
+            } else {
+                previewBox.innerHTML = '<span class="text-gray-500 text-xs">无</span>';
+            }
+        }
+
+
+
         // ================= 初始化与登录 =================
         window.onload = async () => {
                     if (!window.NostrTools) return alert("nostr.bundle.js 未找到");
@@ -1716,6 +1871,7 @@
           }
 
         async function initializeApp() {
+            requestNotificationPermission();
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-screen').classList.remove('hidden');
             if(window.innerWidth >= 768) document.getElementById('welcome-area').classList.remove('hidden');
@@ -2288,6 +2444,16 @@
                                                     triggerBlinkTitle();
                                                 }
 
+                                            // === 新增：如果不是自己的消息，且浏览器在后台，则弹出原生系统通知 ===
+                                                if (!isMe && !isBrowserActive) {
+                                                    let nSender = profiles[senderPk]?.name || "用户";
+                                                    if (groups[peerPk] && groups[peerPk].type === 1) nSender = "Anon";
+                                                    let nContext = groups[peerPk] ? " (" + groups[peerPk].name + ")" : "";
+                                                    let notifyTitle = isAtMe ? "【有人@你】 DageChat" : "新消息" + nContext;
+                                                    let safePreview = String(decryptedText).substring(0, 30);
+                                                    if (safePreview.startsWith('{')) safePreview = "[卡片/图片]";
+                                                    showSystemNotification(notifyTitle, nSender + ": " + safePreview);
+                                                }
                                                 // 修改 push，把 isAtMe 存进去
                                                 messages[peerPk].push({
                                                     id: msgId, sender: senderPk, text: decryptedText,
@@ -3803,6 +3969,7 @@
             let skInput = document.getElementById('my-nsec-display');
             skInput.value = "••••••••••••••"; skInput.type = 'password';
             document.getElementById('btn-toggle-key').innerText = '显示';
+            updateProfileAvatarPreview(); // 打开资料卡时刷新一次头像渲染
             ModalManager.push('profile', closeProfileModal);
         }
 
@@ -4471,6 +4638,54 @@
                               }
                           } catch (e) { alert("公钥格式错误"); }
                         }
+
+// ================= 修改密码业务逻辑 =================
+        function openChangePwdModal() {
+            document.getElementById('change-pwd-old').value = '';
+            document.getElementById('change-pwd-new').value = '';
+            document.getElementById('change-pwd-confirm').value = '';
+            document.getElementById('change-pwd-modal').classList.remove('hidden');
+            ModalManager.push('changePwd', closeChangePwdModal);
+        }
+
+        function closeChangePwdModal(fromPopState = false) {
+            document.getElementById('change-pwd-modal').classList.add('hidden');
+            if (fromPopState !== true) ModalManager.pop('changePwd');
+        }
+
+        async function submitChangePwd() {
+            let oldPwd = document.getElementById('change-pwd-old').value;
+            let newPwd = document.getElementById('change-pwd-new').value;
+            let confirmPwd = document.getElementById('change-pwd-confirm').value;
+
+            if (!oldPwd) return alert("请输入当前旧密码");
+            if (newPwd.length < 8) return alert("新密码长度不能少于 8 位！");
+            if (newPwd !== confirmPwd) return alert("两次输入的新密码不一致！");
+            if (oldPwd === newPwd) return alert("新密码不能与旧密码相同！");
+
+            let accIdx = accounts.findIndex(a => a.pubkey === pubKeyHex);
+            if (accIdx === -1) return alert("本地账号数据异常丢失");
+
+            let acc = accounts[accIdx];
+            try {
+                // 1. 验证旧密码
+                let verifySk = await aesDecrypt(acc.encPrivKey, oldPwd);
+                if (verifySk !== privKeyHex) throw new Error("旧密码解密结果不匹配");
+
+                // 2. 使用新密码重新高强度加密
+                let newEncSk = await aesEncrypt(privKeyHex, newPwd);
+
+                // 3. 落盘保存
+                accounts[accIdx].encPrivKey = newEncSk;
+                localStorage.setItem('dage_accounts', JSON.stringify(accounts));
+
+                alert("✅ 本地密码修改成功！下次解锁或登录请使用新密码。");
+                closeChangePwdModal();
+            } catch (e) {
+                console.error(e);
+                alert("❌ 修改失败，旧密码错误！");
+            }
+        }
 
 // ================= 暗色/淡色主题切换引擎 =================
         function initTheme() {
