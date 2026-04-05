@@ -21,7 +21,7 @@
     <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
         <div class="max-w-sm w-full mx-auto" id="account-list-area">
           <h2 class="text-3xl font-bold text-center text-gray-800 mb-1">DageChat 🔐</h2>
-          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.35</div>
+          <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.36</div>
             <p class="text-sm text-gray-500 mb-6 text-center">选择账号登录</p>
 
             <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -1473,67 +1473,81 @@
             if (fromPopState !== true) ModalManager.pop('pwdVerify');
         }
 
-              async function submitPwdVerify() {
-                  let pwd = document.getElementById('verify-pwd').value;
-                  if (!pwd) return;
+        async function submitPwdVerify() {
+            let pwd = document.getElementById('verify-pwd').value;
+            if (!pwd) return;
 
-                  // 核心修复 1：拦截浏览器禁用的底层加密环境
-                  if (!window.crypto || !window.crypto.subtle) {
-                      alert("环境错误：当前浏览器禁用了 WebCrypto 加密引擎。\n请确保使用 HTTPS 访问，或在本地 localhost (127.0.0.1) 下运行！");
-                      return;
-                  }
+            // 核心修复 1：拦截浏览器禁用的底层加密环境
+            if (!window.crypto || !window.crypto.subtle) {
+                alert("环境错误：当前浏览器禁用了 WebCrypto 加密引擎。\n请确保使用 HTTPS 访问，或在本地 localhost (127.0.0.1) 下运行！");
+                return;
+            }
 
-                  if (pwdContext === 'login_account' && accountToLogin) {
-                      let acc = accounts.find(a => a.pubkey === accountToLogin);
-                      try {
-                          if (!acc) throw new Error("本地账号数据异常丢失");
-                          privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
-                          pubKeyHex = accountToLogin;
-                          closePwdVerifyModal();
-                          await initializeApp(); // 如果这里崩溃，也会被 catch
-                      } catch(e) {
-                          console.error(e);
-                          alert("登录失败！\n真实原因：" + (e.message || e));
-                      }
-                  } else if (pwdContext === 'action_verify') {
-                      let acc = accounts.find(a => a.pubkey === pubKeyHex);
-                      try {
-                          if (!acc) throw new Error("本地账号数据异常丢失");
-                          let realSk = await aesDecrypt(acc.encPrivKey, pwd);
-                          closePwdVerifyModal();
-                          executePendingKeyAction(realSk);
-                      } catch(e) {
-                          console.error(e);
-                          alert("验证失败！\n真实原因：" + (e.message || e));
-                      }
-                  }
-              }
+            if (pwdContext === 'login_account' && accountToLogin) {
+                let acc = accounts.find(a => a.pubkey === accountToLogin);
+                try {
+                    if (!acc) throw new Error("本地账号数据异常丢失");
+                    privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
+                    pubKeyHex = accountToLogin;
 
-              async function unlockApp() {
-              let pwd = document.getElementById('lock-pwd').value;
-              if(!pwd) return;
+                    // === 核心修复：登录成功后，将状态写入 Session 缓存，保障刷新不掉线 ===
+                    sessionStorage.setItem('dage_session_pub', pubKeyHex);
+                    sessionStorage.setItem('dage_session_priv', privKeyHex);
+                    // ==============================================================
 
-              // 核心修复 1：拦截浏览器禁用的底层加密环境
-              if (!window.crypto || !window.crypto.subtle) {
-                  alert("环境错误：当前浏览器禁用了 WebCrypto 加密引擎。\n请确保使用 HTTPS 访问，或在本地 localhost (127.0.0.1) 下运行！");
-                  return;
-              }
+                    closePwdVerifyModal();
+                    await initializeApp(); // 如果这里崩溃，也会被 catch
+                } catch(e) {
+                    console.error(e);
+                    alert("登录失败！\n真实原因：" + (e.message || e));
+                }
+            } else if (pwdContext === 'action_verify') {
+                let acc = accounts.find(a => a.pubkey === pubKeyHex);
+                try {
+                    if (!acc) throw new Error("本地账号数据异常丢失");
+                    let realSk = await aesDecrypt(acc.encPrivKey, pwd);
+                    closePwdVerifyModal();
+                    executePendingKeyAction(realSk);
+                } catch(e) {
+                    console.error(e);
+                    alert("验证失败！\n真实原因：" + (e.message || e));
+                }
+            }
+        }
 
-              let acc = accounts.find(a => a.pubkey === pubKeyHex);
-              try {
-                  if (!acc) throw new Error("本地账号数据异常丢失");
-                  privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
-                  isLocked = false;
-                  document.getElementById('lock-screen').classList.add('hidden');
-                  document.getElementById('app-screen').classList.remove('hidden');
-                  updateActivity();
-                  initRelayConnection();
-              } catch(e) {
-                  console.error(e);
-                  alert("解锁失败！\n真实原因：" + (e.message || e));
-                  document.getElementById('lock-pwd').value='';
-              }
+        async function unlockApp() {
+          let pwd = document.getElementById('lock-pwd').value;
+          if(!pwd) return;
+
+          // 核心修复 1：拦截浏览器禁用的底层加密环境
+          if (!window.crypto || !window.crypto.subtle) {
+              alert("环境错误：当前浏览器禁用了 WebCrypto 加密引擎。\n请确保使用 HTTPS 访问，或在本地 localhost (127.0.0.1) 下运行！");
+              return;
           }
+
+          let acc = accounts.find(a => a.pubkey === pubKeyHex);
+          try {
+              if (!acc) throw new Error("本地账号数据异常丢失");
+              privKeyHex = await aesDecrypt(acc.encPrivKey, pwd);
+              isLocked = false;
+
+              // === 核心修复：解锁成功后，恢复 Session 缓存状态 ===
+              sessionStorage.setItem('dage_session_pub', pubKeyHex);
+              sessionStorage.setItem('dage_session_priv', privKeyHex);
+              // =================================================
+
+              document.getElementById('lock-screen').classList.add('hidden');
+              document.getElementById('app-screen').classList.remove('hidden');
+
+              // 刷新活跃时间并重连网络
+              updateActivity();
+              initRelayConnection();
+          } catch(e) {
+              console.error(e);
+              alert("解锁失败！\n真实原因：" + (e.message || e));
+              document.getElementById('lock-pwd').value='';
+          }
+      }
 
         function actionWithPasswordVerification(actionStr) {
             let skInput = document.getElementById('my-nsec-display');
