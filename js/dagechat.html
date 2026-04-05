@@ -17,6 +17,14 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; overscroll-behavior-y: contain; }
         .h-screen-dvh { height: 100vh; height: 100dvh; }
         .no-select { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        @keyframes highlight-flash {
+            0% { background-color: rgba(250, 204, 21, 0.4); } /* Tailwind yellow-400 with opacity */
+            100% { background-color: transparent; }
+        }
+        .msg-highlight {
+            animation: highlight-flash 2.5s ease-out forwards;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-950 h-screen-dvh w-screen overflow-hidden flex items-center justify-center font-sans relative">
@@ -103,12 +111,16 @@
               </div>
           </div>
           <div class="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
-                          <div class="flex space-x-2">
-                              <input type="text" id="new-contact-input" placeholder="公钥 / 群邀请码 (dage://)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
-                              <button onclick="addContact()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 shadow-sm active:scale-95 shrink-0">添加</button>
-                              <button onclick="openCreateGroupModal()" class="bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-indigo-600 shadow-sm active:scale-95 shrink-0" title="创建群组">建群</button>
-                          </div>
-                      </div>
+                        <div class="flex space-x-2">
+                            <input type="text" id="new-contact-input" placeholder="公钥 / 群邀请码 (dage://)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-1">
+                            <button onclick="addContact()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 shadow-sm active:scale-95 shrink-0">添加</button>
+                            <button onclick="openCreateGroupModal()" class="bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-indigo-600 shadow-sm active:scale-95 shrink-0" title="创建群组">建群</button>
+                        </div>
+                        <!-- 新增：全局搜索入口按钮 -->
+                        <button onclick="openSearchModal()" class="mt-2 w-full bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm active:scale-95 flex items-center justify-center font-medium transition">
+                            🔍 搜索全局聊天记录
+                        </button>
+                    </div>
             <div id="contacts-list" class="flex-1 overflow-y-auto no-scrollbar bg-white dark:bg-gray-900 pb-safe"></div>
         </div>
 
@@ -619,6 +631,29 @@
             </div>
         </div>
     </div>
+
+    <!-- ================= 全局搜索弹窗 ================= -->
+        <div id="search-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[85] flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col h-[75vh] overflow-hidden">
+                <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
+                    <h3 class="text-md font-bold text-gray-800 dark:text-gray-100">🔍 全局搜索</h3>
+                    <button onclick="closeSearchModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:text-gray-100 p-1 transition active:scale-95">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-4 border-b border-gray-100 dark:border-gray-800 shrink-0">
+                    <div class="flex space-x-2">
+                        <input type="text" id="search-keyword-input" placeholder="输入关键词 (回车搜索)..." class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" onkeypress="if(event.key==='Enter') performSearch()">
+                        <button onclick="performSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition active:scale-95 shrink-0">搜索</button>
+                    </div>
+                    <div id="search-status-text" class="text-xs text-gray-500 dark:text-gray-400 mt-3 font-medium">请输入关键词在本地加密内存中检索</div>
+                </div>
+                <div id="search-results-container" class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 p-3 no-scrollbar space-y-3">
+                    <!-- 搜索结果渲染区 -->
+                </div>
+            </div>
+        </div>
+
     <!-- ================= 核心 JavaScript ================= -->
     <script>
         let nt;
@@ -3018,144 +3053,353 @@
                     }
                 }
 
-                function renderMessages(autoScroll = false) {
-                            const list = document.getElementById('message-list');
-                            let prevScrollTop = list.scrollTop;
+      // ================= 重构：支持智能切片定位的渲染引擎 =================
+      let globalTargetMsgIdToHighlight = null;
 
-                            list.innerHTML = '';
-                            let msgs = messages[currentChatPk] || [];
+      function renderMessages(autoScroll = false, targetMsgId = null) {
+          const list = document.getElementById("message-list");
+          let prevScrollTop = list.scrollTop;
 
-                            // 核心优化：DOM 截断渲染。只渲染最后 100 条，保持长会话秒开
-                            let displayMsgs = msgs.length > 100 ? msgs.slice(-100) : msgs;
+          list.innerHTML = "";
+          let msgs = messages[currentChatPk] || [];
 
-                            displayMsgs.forEach(m => {
-                                // === 新增：渲染时跳过黑名单用户的历史消息 ===
-                                if (blocklist.has(m.sender)) return;
-                                let parsed = parseMessageContent(m.text);
-                                let isMe = m.sender === pubKeyHex || (parsed && parsed.nonce && myGhostNonces.has(parsed.nonce));
-                                let isSelected = selectedMsgIds.has(m.id);
+          let displayMsgs =[];
+          let isLocateMode = targetMsgId !== null;
 
-                                let encIcon = m.enc_type === 59 ? '🎁' : (m.enc_type === 0 ? '📢' : '🔒');
-                                let timeStr = new Date(m.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ' ' + encIcon;
+          // 动态 DOM 截断与上下文回溯切片
+          if (isLocateMode) {
+              let targetIdx = msgs.findIndex(m => m.id === targetMsgId);
+              if (targetIdx > -1) {
+                  let start = Math.max(0, targetIdx - 50);
+                  let end = Math.min(msgs.length, targetIdx + 50);
+                  displayMsgs = msgs.slice(start, end);
 
-                                let wrapper = document.createElement('div');
-                                wrapper.className = `flex w-full items-end ${isSelectMode ? 'cursor-pointer hover:bg-gray-100 dark:bg-gray-950 p-1 rounded-lg transition-colors' : ''}`;
-                                if (isSelectMode) wrapper.onclick = () => handleMsgClick(m.id);
+                  if (start > 0) {
+                      let topTip = document.createElement("div");
+                      topTip.className = "text-center text-xs font-bold text-gray-400 my-4 select-none";
+                      topTip.innerText = "--- 以上还有更多历史记录 ---";
+                      list.appendChild(topTip);
+                  }
+              } else {
+                  displayMsgs = msgs.length > 100 ? msgs.slice(-100) : msgs;
+              }
+          } else {
+              displayMsgs = msgs.length > 100 ? msgs.slice(-100) : msgs;
+          }
 
-                                let selectHtml = isSelectMode ? `<div class="w-8 shrink-0 mr-1 flex items-center justify-center"><div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300 dark:border-gray-600'}">${isSelected ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : ''}</div></div>` : '';
+          displayMsgs.forEach(m => {
+              if (blocklist.has(m.sender)) return;
+              let parsed = parseMessageContent(m.text);
+              let isMe = m.sender === pubKeyHex || (parsed && parsed.nonce && myGhostNonces.has(parsed.nonce));
+              let isSelected = selectedMsgIds.has(m.id);
 
-                                // 1. 处理引述/回复 UI
-                                let quoteHtml = '';
-                                if (m.reply_to_id) {
-                                    let orig = msgs.find(x => x.id === m.reply_to_id);
-                                    let origText = "未知消息";
-                                    let origName = "用户";
-                                    if (orig) {
-                                        let op = parseMessageContent(orig.text);
-                                        origText = op.isHistory ? "[聊天记录]" : (op.text || (op.imageB64 ? "[图片]" : "未知"));
-                                        origName = orig.sender === pubKeyHex ? "我" : (profiles[orig.sender]?.name || "用户");
-                                        if(origText.length > 25) origText = origText.substring(0, 25) + '...';
-                                    }
-                                    quoteHtml = `<div class="mb-1.5 p-1.5 rounded bg-black bg-opacity-10 border-l-2 ${isMe ? 'border-blue-300 text-blue-100' : 'border-gray-400 text-gray-500 dark:text-gray-400'} text-[12px] cursor-pointer hover:opacity-80 transition" onclick="alert('TODO: 跳转定位原消息')">
-                                        <span class="font-bold">${escapeHTML(origName)}:</span> ${escapeHTML(origText)}
-                                    </div>`;
-                                }
+              let encIcon = m.enc_type === 59 ? "🎁" : (m.enc_type === 0 ? "📢" : "🔒");
+              let timeStr = new Date(m.time * 1000).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"}) + " " + encIcon;
 
-                                // 2. 处理主体内容 UI (普通文本、图片、合并卡片)
-                                let contentHtml = '';
-                                if (parsed.isHistory) {
-                                    let title = parsed.historyData.title || "聊天记录";
-                                    let previews = "";
-                                    let limit = Math.min(4, parsed.historyData.items.length);
-                                    for(let i=0; i<limit; i++) {
-                                        let item = parsed.historyData.items[i];
-                                        let c = item.c;
-                                        if(c.startsWith('{')) {
-                                           try { let j = JSON.parse(c); c = (j.type === 'history') ? "[聊天记录]" : (j.text || "[图片]"); } catch(e){}
-                                        } else if (item.i) {
-                                           c = "[图片] " + c;
-                                        }
-                                        if(c.length > 20) c = c.substring(0, 20) + '...';
-                                        previews += `<div class="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">${escapeHTML(item.n)}: ${escapeHTML(c)}</div>`;
-                                    }
-                                    // 把整个 payload 存在按钮上，以便弹窗打开
-                                    contentHtml = `
-                                    <div class="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5 cursor-pointer active:bg-gray-200 transition shadow-sm w-60" onclick="openHistoryViewer('${encodeURIComponent(m.text)}')">
-                                        <div class="font-bold text-[13px] text-gray-800 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-1 mb-1.5 truncate">${escapeHTML(title)}</div>
-                                        ${previews}
-                                        <div class="text-[10px] text-gray-400 mt-2 border-t border-gray-100 dark:border-gray-800 pt-1 text-center">点击查看全文</div>
-                                    </div>`;
-                                } else {
-                                    contentHtml = linkifyAndRenderMedia(parsed.text || "", isMe);
-                                    if (parsed.imageB64) {
-                                        let imgBorder = isMe ? 'border-blue-400' : 'border-gray-200 dark:border-gray-700';
-                                        let imgSrc = `data:image/jpeg;base64,${parsed.imageB64}`;
-                                        let imgHtml = `<img src="${imgSrc}" class="max-w-full max-h-48 rounded-lg object-contain shadow-sm border ${imgBorder} cursor-zoom-in" onclick="openImageViewer('${imgSrc}')" onload="if(this.parentNode.parentNode.parentNode.parentNode === document.getElementById('message-list')) document.getElementById('message-list').scrollTop = document.getElementById('message-list').scrollHeight">`;
-                                        contentHtml += contentHtml ? `<div class="mt-2 mb-1">${imgHtml}</div>` : `<div class="mb-1">${imgHtml}</div>`;
-                                    }
-                                }
+              let wrapper = document.createElement("div");
+              wrapper.id = "msg-wrap-" + m.id;
+
+              let wrapperHoverClass = isSelectMode ? "cursor-pointer hover:bg-gray-100 dark:bg-gray-950 p-1 rounded-lg" : "";
+              wrapper.className = `flex w-full items-end transition-all duration-500 ${wrapperHoverClass}`;
+              wrapper.style.padding = "4px";
+              wrapper.style.margin = "-4px 0";
+
+              if (isSelectMode) wrapper.onclick = () => handleMsgClick(m.id);
+
+              let selectHtml = "";
+              if (isSelectMode) {
+                  let selectBorderClass = isSelected ? "bg-blue-500 border-blue-500" : "border-gray-300 dark:border-gray-600";
+                  let selectSvg = isSelected ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>' : '';
+                  selectHtml = `<div class="w-8 shrink-0 mr-1 flex items-center justify-center"><div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectBorderClass}">${selectSvg}</div></div>`;
+              }
+
+              let quoteHtml = "";
+              if (m.reply_to_id) {
+                  let orig = msgs.find(x => x.id === m.reply_to_id);
+                  let origText = "未知消息";
+                  let origName = "用户";
+                  if (orig) {
+                      let op = parseMessageContent(orig.text);
+                      origText = op.isHistory ? "[聊天记录]" : (op.text || (op.imageB64 ? "[图片]" : "未知"));
+                      origName = orig.sender === pubKeyHex ? "我" : (profiles[orig.sender]?.name || "用户");
+                      if(origText.length > 25) origText = origText.substring(0, 25) + "...";
+                  }
+                  let quoteBorderColor = isMe ? "border-blue-300 text-blue-100" : "border-gray-400 text-gray-500 dark:text-gray-400";
+                  let safeOrigName = escapeHTML(origName);
+                  let safeOrigText = escapeHTML(origText);
+
+                  quoteHtml = `<div class="mb-1.5 p-1.5 rounded bg-black bg-opacity-10 border-l-2 ${quoteBorderColor} text-[12px] cursor-pointer hover:opacity-80 transition" onclick="jumpToMessage(currentChatPk, '${m.reply_to_id}')">
+                      <span class="font-bold">${safeOrigName}:</span> ${safeOrigText}
+                  </div>`;
+              }
+
+              let contentHtml = "";
+              if (parsed.isHistory) {
+                  let title = parsed.historyData.title || "聊天记录";
+                  let previews = "";
+                  let limit = Math.min(4, parsed.historyData.items.length);
+                  for(let i=0; i<limit; i++) {
+                      let item = parsed.historyData.items[i];
+                      let c = item.c;
+                      if(c.startsWith("{")) {
+                         try { let j = JSON.parse(c); c = (j.type === "history") ? "[聊天记录]" : (j.text || "[图片]"); } catch(e){}
+                      } else if (item.i) {
+                         c = "[图片] " + c;
+                      }
+                      if(c.length > 20) c = c.substring(0, 20) + "...";
+                      previews += `<div class="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">${escapeHTML(item.n)}: ${escapeHTML(c)}</div>`;
+                  }
+                  let encodedText = encodeURIComponent(m.text);
+                  let safeTitle = escapeHTML(title);
+                  contentHtml = `
+                  <div class="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5 cursor-pointer active:bg-gray-200 transition shadow-sm w-60" onclick="openHistoryViewer('${encodedText}')">
+                      <div class="font-bold text-[13px] text-gray-800 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 pb-1 mb-1.5 truncate">${safeTitle}</div>
+                      ${previews}
+                      <div class="text-[10px] text-gray-400 mt-2 border-t border-gray-100 dark:border-gray-800 pt-1 text-center">点击查看全文</div>
+                  </div>`;
+              } else {
+                  contentHtml = linkifyAndRenderMedia(parsed.text || "", isMe);
+                  if (parsed.imageB64) {
+                      let imgBorder = isMe ? "border-blue-400" : "border-gray-200 dark:border-gray-700";
+                      let imgSrc = `data:image/jpeg;base64,${parsed.imageB64}`;
+                      let imgHtml = `<img src="${imgSrc}" class="max-w-full max-h-48 rounded-lg object-contain shadow-sm border ${imgBorder} cursor-zoom-in" onclick="openImageViewer('${imgSrc}')" onload="if(this.parentNode.parentNode.parentNode.parentNode === document.getElementById('message-list')) document.getElementById('message-list').scrollTop = document.getElementById('message-list').scrollHeight">`;
+                      contentHtml += contentHtml ? `<div class="mt-2 mb-1">${imgHtml}</div>` : `<div class="mb-1">${imgHtml}</div>`;
+                  }
+              }
+
+              let senderNameHtml = "";
+              let isTargetMe = (m.isAtMe === true) && !isMe;
+              if (groups[currentChatPk] && !isMe) {
+                  let sName = "未知";
+                  if (groups[currentChatPk].type === 1 && parsed && parsed.alias) {
+                      sName = parsed.alias + " 🎭";
+                  } else if (profiles[m.sender] && profiles[m.sender].name) {
+                      sName = profiles[m.sender].name;
+                  } else if (parsed && parsed.name) {
+                      sName = parsed.name;
+                  } else {
+                      sName = "用户 " + m.sender.substring(0,6);
+                  }
+
+                  let atBadge = isTargetMe ? '<span class="ml-1.5 px-1.5 py-0.5 bg-red-100 text-red-600 border border-red-200 rounded font-bold text-[9px] shadow-sm">🎯 提到了你</span>' : '';
+                  let safeSName = escapeHTML(sName);
+                  senderNameHtml = `<div onclick="openMemberActionModal('${m.sender}', '${safeSName}')" class="text-[11px] text-gray-500 dark:text-gray-400 mb-1 ml-1 flex items-center cursor-pointer hover:text-blue-500 active:scale-95 transition-colors w-max select-none">${safeSName} ${atBadge}</div>`;
+              }
+
+              let bubbleStyleClass = isMe
+                  ? "bg-blue-600 text-white rounded-tr-sm border border-blue-600 dark:bg-blue-700 dark:border-blue-700"
+                  : "bg-white text-gray-800 rounded-tl-sm border border-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700";
+
+              if (isTargetMe) {
+                  bubbleStyleClass = "bg-red-50 text-red-900 rounded-tl-sm border border-red-300 shadow-md dark:bg-red-900 dark:text-red-100 dark:border-red-700";
+              }
+
+              let isTombstone = (m.text === "🔒 该消息已被撤回");
+              if (isTombstone) {
+                  let tombstoneColor = isMe ? "text-blue-100" : "text-gray-400";
+                  contentHtml = `<span class="italic ${tombstoneColor}">🔒 该消息已被撤回</span>`;
+                  bubbleStyleClass = isMe ? "bg-blue-400 text-white rounded-tr-sm border border-blue-400 opacity-80" : "bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 rounded-tl-sm border border-gray-200 dark:border-gray-700 shadow-none";
+                  quoteHtml = "";
+              }
+
+              let alignClass = isMe ? "items-end" : "items-start";
+              let timeColorClass = isMe ? "text-blue-200" : (isTargetMe ? "text-red-400" : "text-gray-400");
+
+              let bubbleHtml = `
+                  <div class="flex flex-col flex-1 ${alignClass} no-select"
+                      ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})"
+                      ontouchend="handleTouchEnd()" ontouchmove="handleTouchMove()" ontouchcancel="handleTouchMove()"
+                      oncontextmenu="handleRightClick(event, '${m.id}', ${isMe})">
+                      ${senderNameHtml}
+                      <div class="max-w-[75%] md:max-w-md rounded-2xl p-3 shadow-sm ${bubbleStyleClass}">
+                          ${quoteHtml}
+                          <div class="text-[15px] whitespace-pre-wrap break-words leading-relaxed">${contentHtml}</div>
+                          <div class="text-[11px] text-right mt-1.5 ${timeColorClass}">${timeStr}</div>
+                      </div>
+                  </div>
+              `;
+              wrapper.innerHTML = selectHtml + bubbleHtml;
+              list.appendChild(wrapper);
+          });
+
+          if (isLocateMode) {
+              let targetIdx = msgs.findIndex(m => m.id === targetMsgId);
+              if (targetIdx > -1 && targetIdx + 50 < msgs.length) {
+                  let bottomTip = document.createElement("div");
+                  bottomTip.className = "text-center text-xs font-bold text-blue-500 my-4 cursor-pointer hover:underline p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg mx-auto w-40 active:scale-95 transition-transform";
+                  bottomTip.innerText = "⬇️ 回到最新消息";
+                  bottomTip.onclick = () => { globalTargetMsgIdToHighlight = null; renderMessages(true); };
+                  list.appendChild(bottomTip);
+              }
+          }
+
+          if (autoScroll) {
+              list.scrollTop = list.scrollHeight;
+          } else if (isLocateMode) {
+              setTimeout(() => {
+                  let targetEl = document.getElementById("msg-wrap-" + targetMsgId);
+                  if (targetEl) {
+                      targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                      targetEl.classList.remove("msg-highlight");
+                      void targetEl.offsetWidth;
+                      targetEl.classList.add("msg-highlight");
+                  }
+                  globalTargetMsgIdToHighlight = null;
+              }, 100);
+          } else {
+              list.scrollTop = prevScrollTop;
+          }
+      }
+
+          // ================= 搜索与定位控制器 =================
+          function openSearchModal() {
+              document.getElementById('search-keyword-input').value = '';
+              document.getElementById('search-results-container').innerHTML = '';
+              document.getElementById('search-status-text').innerText = '请输入关键词在本地加密内存中检索';
+              document.getElementById('search-modal').classList.remove('hidden');
+              setTimeout(() => document.getElementById('search-keyword-input').focus(), 100);
+              ModalManager.push('searchModal', closeSearchModal);
+          }
+
+          function closeSearchModal(fromPopState = false) {
+              document.getElementById('search-modal').classList.add('hidden');
+              if (fromPopState !== true) ModalManager.pop('searchModal');
+          }
+
+          function performSearch() {
+              let keyword = document.getElementById("search-keyword-input").value.trim().toLowerCase();
+              let container = document.getElementById("search-results-container");
+              let statusText = document.getElementById("search-status-text");
+
+              if (!keyword) {
+                  statusText.innerText = "⚠️ 请输入要搜索的关键词";
+                  return;
+              }
+
+              container.innerHTML = "";
+              statusText.innerText = "🔍 正在高强度本地检索...";
+              let results =[];
+
+              // 遍历所有会话的加密缓存 (内存中明文)
+              for (let chatPk in messages) {
+                  let msgs = messages[chatPk];
+                  if (!msgs || msgs.length === 0) continue;
+
+                  let isGroup = !!groups[chatPk];
+                  let chatName = "未知用户";
+
+                  // 避免编辑器语法高亮崩溃，提取所有判断逻辑
+                  if (isGroup) {
+                      chatName = groups[chatPk].name;
+                  } else if (profiles[chatPk] && profiles[chatPk].name) {
+                      chatName = profiles[chatPk].name;
+                  }
+
+                  if (chatPk === pubKeyHex) {
+                      let myName = (profiles[pubKeyHex] && profiles[pubKeyHex].name) ? profiles[pubKeyHex].name : "我";
+                      chatName = myName + " (备忘录)";
+                  }
+
+                  for (let m of msgs) {
+                      if (m.text === "🔒 该消息已被撤回" || hiddenMsgsSet.has(m.id)) continue;
+                      if (blocklist.has(m.sender)) continue;
+
+                      let parsed = parseMessageContent(m.text);
+                      let searchableText = "";
+                      if (parsed.isHistory && parsed.historyData) {
+                          searchableText = "[聊天记录] " + (parsed.historyData.title || "");
+                      } else {
+                          searchableText = parsed.text || "";
+                      }
+
+                      if (searchableText.toLowerCase().includes(keyword)) {
+                          let sName = "未知";
+                          if (m.sender === pubKeyHex) {
+                              sName = (profiles[pubKeyHex] && profiles[pubKeyHex].name) ? profiles[pubKeyHex].name : "我";
+                          } else if (isGroup && groups[chatPk].type === 1) {
+                              sName = parsed.alias || "Anon";
+                          } else if (profiles[m.sender] && profiles[m.sender].name) {
+                              sName = profiles[m.sender].name;
+                          } else {
+                              sName = "用户";
+                          }
+
+                          results.push({
+                              chatPk: chatPk, chatName: chatName, msgId: m.id,
+                              senderName: sName, text: searchableText, time: m.time, isGroup: isGroup
+                          });
+                      }
+                  }
+              }
+
+              results.sort((a, b) => b.time - a.time);
+
+              if (results.length === 0) {
+                  statusText.innerText = "📭 未找到匹配的结果";
+                  return;
+              }
+
+              statusText.innerText = "✅ 找到 " + results.length + " 条相关记录";
+
+              results.forEach(res => {
+                  let timeStr = new Date(res.time * 1000).toLocaleString();
+                  let snippet = res.text;
+
+                  // 智能高亮与截取上下文
+                  let idx = snippet.toLowerCase().indexOf(keyword);
+                  if (idx > -1) {
+                      let start = Math.max(0, idx - 15);
+                      let end = Math.min(snippet.length, idx + keyword.length + 15);
+                      let prefix = start > 0 ? "..." : "";
+                      let suffix = end < snippet.length ? "..." : "";
+                      snippet = prefix + snippet.substring(start, end) + suffix;
+                  }
+
+                  let div = document.createElement("div");
+                  div.className = "p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-800 transition shadow-sm active:scale-95";
+                  div.onclick = () => {
+                      closeSearchModal();
+                      jumpToMessage(res.chatPk, res.msgId);
+                  };
+
+                  let icon = "👤";
+                  if (res.isGroup) {
+                      icon = groups[res.chatPk].type === 1 ? "⚡" : "📢";
+                  }
+                  if (res.chatPk === OFFICIAL_GROUP.id) icon = "📡";
+
+                  // 高亮替换正则，避免模板字符串嵌套引发崩溃
+                  let highlightRegex = new RegExp(escapeHTML(keyword), "gi");
+                  let highlightSnippet = escapeHTML(snippet).replace(highlightRegex, function(match) {
+                      return '<span class="bg-yellow-300 dark:bg-yellow-600 text-yellow-900 dark:text-yellow-50 font-bold rounded px-1">' + match + '</span>';
+                  });
+
+                  let safeChatName = escapeHTML(res.chatName);
+                  let safeSenderName = escapeHTML(res.senderName);
+
+                  div.innerHTML =
+                      '<div class="flex justify-between items-center mb-1.5">' +
+                          '<div class="text-xs font-bold text-blue-600 dark:text-blue-400 truncate flex-1">' + icon + ' ' + safeChatName + '</div>' +
+                          '<div class="text-[10px] text-gray-400 shrink-0 ml-2 bg-gray-50 dark:bg-gray-800 px-1.5 py-0.5 rounded">' + timeStr + '</div>' +
+                      '</div>' +
+                      '<div class="text-sm text-gray-700 dark:text-gray-300 break-words leading-relaxed">' +
+                          '<span class="font-bold text-gray-500 dark:text-gray-400 mr-1">' + safeSenderName + ':</span>' +
+                          highlightSnippet +
+                      '</div>';
+
+                  container.appendChild(div);
+              });
+          }
 
 
-                            // 3. 渲染发件人名字 (群聊) 与 @ 提及高亮
-                              let senderNameHtml = '';
-                              // 判断这条消息是否 @ 了我
-                              let isTargetMe = (m.isAtMe === true) && !isMe;
+        function jumpToMessage(chatPk, msgId) {
+            // 1. 切换到目标会话（底层会自动处理关闭当前的，渲染联系人等状态）
+            selectContact(chatPk);
 
-                              if (groups[currentChatPk] && !isMe) {
-                                  let sName = "未知";
-                                  if (groups[currentChatPk].type === 1 && parsed && parsed.alias) {
-                                      sName = parsed.alias + " 🎭";
-                                  } else if (profiles[m.sender] && profiles[m.sender].name) {
-                                      sName = profiles[m.sender].name;
-                                  } else if (parsed && parsed.name) {
-                                      sName = parsed.name;
-                                  } else {
-                                      sName = "用户 " + m.sender.substring(0,6);
-                                  }
-
-                                  // 如果被 @ 了，名字旁边加个小徽章
-                                  let atBadge = isTargetMe ? `<span class="ml-1.5 px-1.5 py-0.5 bg-red-100 text-red-600 border border-red-200 rounded font-bold text-[9px] shadow-sm">🎯 提到了你</span>` : '';
-                                            // 核心修复：加上 onclick 事件并增加 hover 变色效果，提示用户可点击
-                                  senderNameHtml = `<div onclick="openMemberActionModal('${m.sender}', '${escapeHTML(sName)}')" class="text-[11px] text-gray-500 dark:text-gray-400 mb-1 ml-1 flex items-center cursor-pointer hover:text-blue-500 active:scale-95 transition-colors w-max select-none">${escapeHTML(sName)} ${atBadge}</div>`;
-                                  }
-
-                              // 气泡样式逻辑：如果是别人 @ 我的消息，把背景变成醒目的浅红色
-                              let bubbleStyleClass = isMe
-                                    ? 'bg-blue-600 text-white rounded-tr-sm border border-blue-600 dark:bg-blue-700 dark:border-blue-700'
-                                    : 'bg-white text-gray-800 rounded-tl-sm border border-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700';
-
-                              if (isTargetMe) {
-                                    bubbleStyleClass = 'bg-red-50 text-red-900 rounded-tl-sm border border-red-300 shadow-md dark:bg-red-900 dark:text-red-100 dark:border-red-700';
-                              }
-
-                                // 核心对齐：识别并渲染墓碑样式
-                                let isTombstone = (m.text === "🔒 该消息已被撤回");
-                                if (isTombstone) {
-                                    contentHtml = `<span class="italic ${isMe ? 'text-blue-100' : 'text-gray-400'}">🔒 该消息已被撤回</span>`;
-                                    bubbleStyleClass = isMe ? 'bg-blue-400 text-white rounded-tr-sm border border-blue-400 opacity-80' : 'bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 rounded-tl-sm border border-gray-200 dark:border-gray-700 shadow-none';
-                                    quoteHtml = ''; // 撤回的消息强行隐藏引述层
-                                }
-
-                                let bubbleHtml = `
-                                  <div class="flex flex-col flex-1 ${isMe ? 'items-end' : 'items-start'} no-select"
-                                       ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})"
-                                       ontouchend="handleTouchEnd()" ontouchmove="handleTouchMove()" ontouchcancel="handleTouchMove()"
-                                       oncontextmenu="handleRightClick(event, '${m.id}', ${isMe})">
-                                      ${senderNameHtml}
-                                      <div class="max-w-[75%] md:max-w-md rounded-2xl p-3 shadow-sm ${bubbleStyleClass}">
-                                          ${quoteHtml}
-                                          <div class="text-[15px] whitespace-pre-wrap break-words leading-relaxed">${contentHtml}</div>
-                                          <div class="text-[11px] text-right mt-1.5 ${isMe ? 'text-blue-200' : (isTargetMe ? 'text-red-400' : 'text-gray-400')}">${timeStr}</div>
-                                      </div>
-                                  </div>
-                              `;
-                                wrapper.innerHTML = selectHtml + bubbleHtml;
-                                list.appendChild(wrapper);
-                            });
-
-                            if (autoScroll) list.scrollTop = list.scrollHeight;
-                            else list.scrollTop = prevScrollTop;
-                        }
+            // 2. 利用新版引擎的 targetMsgId 参数进行上下文切片渲染和定位
+            globalTargetMsgIdToHighlight = msgId;
+            renderMessages(false, msgId);
+        }
 
     async function sendMessage() {
       let input = document.getElementById('msg-input');
