@@ -7872,7 +7872,7 @@ Disclaimer / 免责声明:
   <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white dark:bg-gray-900 md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
     <div class="max-w-sm w-full mx-auto" id="account-list-area">
       <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-1">DageChat 🔐</h2>
-      <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.48</div>
+      <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.50</div>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">选择账号登录</p>
 
       <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -8021,23 +8021,11 @@ Disclaimer / 免责声明:
             <span id="protocol-label" class="text-[10px] md:text-xs text-gray-600 dark:text-gray-300 font-bold w-10 text-center tracking-wide">NIP-59</span>
           </div>
 
-
-          <button onclick="openSearchModal(currentChatPk)" title="搜索当前会话" class="text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600 px-2 md:px-3 py-2 bg-white dark:bg-gray-900 rounded-lg active:bg-gray-50 dark:active:bg-gray-800 transition shadow-sm border border-gray-200 dark:border-gray-700 flex items-center font-bold">
-            <svg class="w-4 h-4 md:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          <button onclick="openChatMoreModal()" class="p-2 text-gray-500 hover:text-blue-600 transition active:scale-95 shrink-0" title="更多操作">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
             </svg>
-            <span class="hidden md:inline">搜索</span>
           </button>
-
-          <button onclick="openExportModal(currentChatPk)" title="导出当前会话" class="text-xs text-blue-600 hover:text-blue-700 px-2 md:px-3 py-2 bg-blue-50 rounded-lg active:bg-blue-100 transition shadow-sm border border-blue-100 flex items-center font-bold">
-            <svg class="w-4 h-4 md:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-            </svg>
-            <span class="hidden md:inline">导出</span>
-          </button>
-
-
-          <button onclick="clearCurrentChatHistory()" class="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 px-3 py-2 bg-white dark:bg-gray-900 rounded-lg active:bg-red-50 transition shadow-sm border border-gray-200 dark:border-gray-700">清空</button>
         </div>
       </div>
 
@@ -8670,6 +8658,20 @@ Disclaimer / 免责声明:
     </div>
   </div>
 
+  <div id="chat-more-modal" class="fixed inset-0 bg-black bg-opacity-40 hidden z-[70] flex flex-col justify-end md:justify-center md:items-center transition-opacity" onclick="closeChatMoreModal(event)">
+    <div id="chat-more-content" class="bg-white dark:bg-gray-900 w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
+      <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2 md:hidden"></div>
+      <div class="p-2 space-y-1">
+        <button onclick="closeChatMoreModal(); openSearchModal(currentChatPk)" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">🔍 搜索记录</button>
+        <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
+        <button onclick="closeChatMoreModal(); openExportModal(currentChatPk)" class="w-full py-4 text-blue-600 text-[17px] active:bg-blue-50 dark:active:bg-gray-950 rounded-lg text-center font-medium">📤 导出记录</button>
+        <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
+        <button onclick="closeChatMoreModal(); clearCurrentChatHistory()" class="w-full py-4 text-red-500 text-[17px] active:bg-red-50 dark:active:bg-gray-950 rounded-lg text-center font-medium">🧹 清空记录 (仅本地)</button>
+        <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
+        <button onclick="closeChatMoreModal()" class="w-full py-4 text-gray-500 dark:text-gray-400 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center">取消</button>
+      </div>
+    </div>
+  </div>
 
 
   <script>
@@ -8687,7 +8689,15 @@ Disclaimer / 免责声明:
       contacts = [],
       messages = {},
       unreadCounts = {},
-      currentChatPk = null,
+      lastReadWatermarks = {};
+
+    async function saveReadStatusImmediately() {
+      if (privKeyHex && pubKeyHex) try {
+        saveEncryptedData("unread_counts", unreadCounts), saveEncryptedData("last_read_watermarks", lastReadWatermarks);
+      } catch (e) {}
+    }
+
+    let currentChatPk = null,
       peerPkToViewGlobal = null,
       hiddenMsgsSet = new Set,
       isSelectMode = !1,
@@ -9414,7 +9424,8 @@ Disclaimer / 免责声明:
       _syncCacheTimer && clearTimeout(_syncCacheTimer), _syncCacheTimer = setTimeout(async () => {
         if (privKeyHex && pubKeyHex) try {
           saveEncryptedData("hidden_ids", Array.from(hiddenMsgsSet)), saveEncryptedData("msg_cache", messages),
-            saveEncryptedData("unread_counts", unreadCounts), saveEncryptedData("groups_cache", groups);
+            saveEncryptedData("unread_counts", unreadCounts), saveEncryptedData("last_read_watermarks", lastReadWatermarks),
+            saveEncryptedData("groups_cache", groups);
           let lightProfiles = {};
           for (let pk in profiles)
             if (lightProfiles[pk] = {
@@ -9516,8 +9527,8 @@ Disclaimer / 免责声明:
         updateActivity();
       let hiddenArr = await loadEncryptedData("hidden_ids", []);
       hiddenMsgsSet = new Set(hiddenArr), messages = await loadEncryptedData("msg_cache", {}),
-        unreadCounts = await loadEncryptedData("unread_counts", {}), groups = await loadEncryptedData("groups_cache", {}),
-        profiles = await loadEncryptedData("profiles_cache", {});
+        unreadCounts = await loadEncryptedData("unread_counts", {}), lastReadWatermarks = await loadEncryptedData("last_read_watermarks", {}),
+        groups = await loadEncryptedData("groups_cache", {}), profiles = await loadEncryptedData("profiles_cache", {});
       for (let pk in profiles) {
         let savedPic = localStorage.getItem("dage_avatar_" + pk);
         savedPic && (profiles[pk].picture = savedPic);
@@ -9940,9 +9951,7 @@ Disclaimer / 免责声明:
           return m.id === msgId;
         })) {
         let isNewRealTimeMsg = !0;
-        if (messages[peerPk].length > 0) {
-          timestamp < messages[peerPk][messages[peerPk].length - 1].time && (isNewRealTimeMsg = !1);
-        }
+        timestamp <= (lastReadWatermarks[peerPk] || 0) && (isNewRealTimeMsg = !1);
         let isAtMe = !1,
           myName = profiles[pubKeyHex] && profiles[pubKeyHex].name ? profiles[pubKeyHex].name : "我";
         if (groups[peerPk] && senderPk !== pubKeyHex) try {
@@ -9979,7 +9988,7 @@ Disclaimer / 免责声明:
             isAtMe: isAtMe
           }), messages[peerPk].sort(function(a, b) {
             return a.time - b.time;
-          }), isNewRealTimeMsg && peerPk !== currentChatPk && senderPk !== pubKeyHex && (unreadCounts[peerPk] = (unreadCounts[peerPk] || 0) + 1),
+          }), peerPk === currentChatPk ? lastReadWatermarks[peerPk] = Math.max(lastReadWatermarks[peerPk] || 0, timestamp, Math.floor(Date.now() / 1e3)) : isNewRealTimeMsg && senderPk !== pubKeyHex && (unreadCounts[peerPk] = (unreadCounts[peerPk] || 0) + 1),
           profiles[senderPk] || senderPk === pubKeyHex || broadcastToRelays(JSON.stringify(["REQ", "fetchNewUser-" + Date.now(), {
             kinds: [0],
             authors: [senderPk]
@@ -10545,9 +10554,9 @@ Disclaimer / 免责声明:
     }
 
     function selectContact(pk) {
-      peerPkToView = pk, currentChatPk = pk, unreadCounts[pk] && (unreadCounts[pk] = 0,
-        syncLocalEncryptedCache()), mentionCounts[pk] && (mentionCounts[pk] = 0), titleBlinkTimer && (clearInterval(titleBlinkTimer),
-        titleBlinkTimer = null, document.title = originalTitle);
+      peerPkToView = pk, currentChatPk = pk, lastReadWatermarks[pk] = Math.floor(Date.now() / 1e3),
+        unreadCounts[pk] && (unreadCounts[pk] = 0), saveReadStatusImmediately(), mentionCounts[pk] && (mentionCounts[pk] = 0),
+        titleBlinkTimer && (clearInterval(titleBlinkTimer), titleBlinkTimer = null, document.title = originalTitle);
       let mentionBtn = document.getElementById("btn-mention");
       mentionBtn && (groups[pk] ? mentionBtn.classList.remove("hidden") : mentionBtn.classList.add("hidden")),
         exitSelectMode(), renderContacts(), updateChatHeader(), document.getElementById("welcome-area").classList.add("hidden"),
@@ -11707,6 +11716,22 @@ Disclaimer / 免责声明:
       pIsPulling = !1;
 
     const contactsListEl = document.getElementById("contacts-list");
+
+    function openChatMoreModal() {
+      currentChatPk && (document.getElementById("chat-more-modal").classList.remove("hidden"),
+        setTimeout(() => {
+          document.getElementById("chat-more-content").classList.remove("translate-y-full");
+        }, 10), ModalManager.push("chatMore", closeChatMoreModal));
+    }
+
+    function closeChatMoreModal(eOrFromPopState) {
+      if (eOrFromPopState && "object" == typeof eOrFromPopState && eOrFromPopState.target && eOrFromPopState.target !== document.getElementById("chat-more-modal")) return;
+      let isPopState = !0 === eOrFromPopState;
+      document.getElementById("chat-more-content").classList.add("translate-y-full"),
+        setTimeout(() => {
+          document.getElementById("chat-more-modal").classList.add("hidden");
+        }, 200), isPopState || ModalManager.pop("chatMore");
+    }
 
     function openSessionActionModal(pk, name) {
       currentSessionActionPk = pk, document.getElementById("session-action-name").innerText = name,
