@@ -7872,7 +7872,7 @@ Disclaimer / 免责声明:
   <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white dark:bg-gray-900 md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
     <div class="max-w-sm w-full mx-auto" id="account-list-area">
       <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-1">DageChat 🔐</h2>
-      <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.50</div>
+      <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.53</div>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">选择账号登录</p>
 
       <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -8073,12 +8073,22 @@ Disclaimer / 免责声明:
 
           <button id="btn-mention" onclick="openMentionModal()" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5 font-bold text-lg hidden" title="@提及成员">@</button>
 
-          <button onclick="document.getElementById('image-upload').click()" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5" title="发送图片">
+
+          <button onclick="document.getElementById('image-upload').click()" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5" title="相册图片">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
             </svg>
           </button>
-          <input type="file" id="image-upload" accept="image/*" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 hidden" onchange="handleImageSelect(event)">
+          <input type="file" id="image-upload" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+
+
+          <button onclick="document.getElementById('camera-upload').click()" class="text-gray-500 dark:text-gray-400 hover:text-blue-600 p-2 active:scale-95 transition flex-shrink-0 mb-0.5" title="拍照发送">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+              <circle cx="12" cy="13" r="3"></circle>
+            </svg>
+          </button>
+          <input type="file" id="camera-upload" accept="image/*" capture="environment" class="hidden" onchange="handleImageSelect(event)">
 
           <textarea id="msg-input" rows="1" placeholder="输入消息... 长按气泡更多操作" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-xl py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm resize-none text-base max-h-32 no-scrollbar" oninput="handleChatInput(this)" onkeypress="handleEnter(event)"></textarea>
           <button onclick="sendMessage()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 shadow-sm font-medium active:scale-95 h-[46px]">发送</button>
@@ -8128,7 +8138,12 @@ Disclaimer / 免责声明:
           <label id="peer-modal-pubkey-label" class="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Npub 公钥</label>
           <div class="flex items-center">
             <div id="peer-modal-pubkey" class="text-xs text-gray-600 dark:text-gray-300 font-mono truncate flex-1 select-all"></div>
-            <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('ID 已复制！')" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1 bg-white dark:bg-gray-900 rounded shadow-sm border border-gray-200 dark:border-gray-700 active:scale-95">
+            <button onclick="showQrCode('公钥二维码', document.getElementById('peer-modal-pubkey').innerText, document.getElementById('peer-modal-name').innerText)" class="ml-2 text-blue-500 hover:text-blue-700 shrink-0 p-1 bg-white dark:bg-gray-900 rounded shadow-sm border border-gray-200 dark:border-gray-700 active:scale-95" title="显示二维码">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 19h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+              </svg>
+            </button>
+            <button onclick="copyText(document.getElementById('peer-modal-pubkey').innerText); alert('ID 已复制！')" class="ml-1 text-blue-500 hover:text-blue-700 shrink-0 p-1 bg-white dark:bg-gray-900 rounded shadow-sm border border-gray-200 dark:border-gray-700 active:scale-95" title="复制公钥">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
               </svg>
@@ -8255,7 +8270,7 @@ Disclaimer / 免责声明:
           <div class="flex">
             <input type="text" id="my-npub-display" readonly class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-l-lg p-2 bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 font-mono text-xs overflow-hidden outline-none">
             <button onclick="copyText(document.getElementById('my-npub-display').value); alert('公钥已复制！');" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 text-sm border border-l-0 border-r-0 border-gray-300 dark:border-gray-600 transition font-medium">复制</button>
-            <button onclick="showQrCode('公钥二维码', document.getElementById('my-npub-display').value)" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 rounded-r-lg text-lg border border-l-0 border-gray-300 dark:border-gray-600 transition font-medium">📱</button>
+            <button onclick="showQrCode('公钥二维码', document.getElementById('my-npub-display').value, document.getElementById('edit-name').value || '我')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 rounded-r-lg text-lg border border-l-0 border-gray-300 dark:border-gray-600 transition font-medium">📱</button>
           </div>
         </div>
         <div class="flex space-x-3">
@@ -8404,7 +8419,7 @@ Disclaimer / 免责声明:
 
       <div class="p-5 border-b border-gray-100 dark:border-gray-800 shrink-0">
         <div class="flex space-x-2">
-          <input type="text" id="new-relay-input" placeholder="输入 Relay 地址 (wss://...)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <input type="text" id="new-relay-input" onkeypress="if(event.key==='Enter') addRelayNode()" placeholder="输入 Relay 地址 (wss://...)" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 flex-1 border border-gray-300 dark:border-gray-600 rounded-lg py-2.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <button onclick="addRelayNode()" class="bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition active:scale-95 shrink-0">添加并连接</button>
         </div>
         <p class="text-xs text-gray-400 mt-2">提示：连接失败的自签名节点，请点击列表中的“信任证书”以授权。</p>
@@ -8486,7 +8501,7 @@ Disclaimer / 免责声明:
       <textarea id="invite-code-display" readonly rows="5" class="dark:bg-gray-800 dark:text-white dark:border-gray-600 w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 focus:outline-none resize-none break-all"></textarea>
       <div class="mt-5 flex justify-end space-x-3">
         <button onclick="closeInviteCodeModal()" class="px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:bg-gray-950 rounded-lg transition">关闭</button>
-        <button onclick="showQrCode('群组邀请码', document.getElementById('invite-code-display').value)" class="px-4 py-2.5 text-xl font-medium bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition shadow-sm active:scale-95" title="显示二维码">📱</button>
+        <button onclick="showQrCode('群组邀请码', document.getElementById('invite-code-display').value, document.getElementById('invite-code-display').getAttribute('data-gname') || '群聊')" class="px-4 py-2.5 text-xl font-medium bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition shadow-sm active:scale-95" title="显示二维码">📱</button>
         <button onclick="copyText(document.getElementById('invite-code-display').value); alert('邀请码已复制！'); closeInviteCodeModal();" class="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm active:scale-95">复制邀请码</button>
       </div>
     </div>
@@ -8621,9 +8636,13 @@ Disclaimer / 免责声明:
     <div class="w-full max-w-md bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-2xl">
       <div class="p-3 bg-gray-50 dark:bg-gray-800 flex justify-between items-center border-b border-gray-200 dark:border-gray-700">
         <h3 class="font-bold text-gray-800 dark:text-gray-100">📷 扫码</h3>
-        <button onclick="stopQrScan()" class="text-gray-500 hover:text-red-500 p-1"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg></button>
+        <div class="flex items-center space-x-3">
+          <button onclick="document.getElementById('qr-file-upload').click()" class="text-xs font-bold bg-blue-100 text-blue-600 px-3 py-1.5 rounded shadow-sm hover:bg-blue-200 transition">相册</button>
+          <input type="file" id="qr-file-upload" accept="image/*" class="hidden" onchange="scanQrFromFile(event)">
+          <button onclick="stopQrScan()" class="text-gray-500 hover:text-red-500 p-1"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg></button>
+        </div>
       </div>
       <div id="qr-reader" class="w-full bg-black" style="min-height: 300px;"></div>
     </div>
@@ -8632,7 +8651,8 @@ Disclaimer / 免责声明:
 
   <div id="qr-display-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-[200] flex items-center justify-center p-4" onclick="if(event.target===this) this.classList.add('hidden')">
     <div class="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full">
-      <h3 id="qr-display-title" class="text-lg font-bold text-gray-800 mb-4">扫一扫</h3>
+      <h3 id="qr-display-title" class="text-gray-500 text-sm font-bold mb-2">扫一扫</h3>
+      <h2 id="qr-display-subtitle" class="text-2xl font-black text-blue-600 mb-4 text-center hidden w-full truncate px-2"></h2>
       <div id="qr-display-canvas" class="bg-white p-2 rounded shadow-sm"></div>
       <p id="qr-display-desc" class="text-xs text-gray-500 mt-4 text-center break-all w-full"></p>
       <button onclick="document.getElementById('qr-display-modal').classList.add('hidden')" class="mt-5 bg-blue-600 text-white px-6 py-2 rounded-lg font-bold w-full">关闭</button>
@@ -8662,6 +8682,8 @@ Disclaimer / 免责声明:
     <div id="chat-more-content" class="bg-white dark:bg-gray-900 w-full md:w-80 rounded-t-2xl md:rounded-2xl pb-safe transform transition-transform translate-y-full md:translate-y-0 shadow-2xl">
       <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2 md:hidden"></div>
       <div class="p-2 space-y-1">
+        <button id="chat-more-profile-btn" onclick="closeChatMoreModal(); showPeerProfileModal()" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">👤 查看资料</button>
+        <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
         <button onclick="closeChatMoreModal(); openSearchModal(currentChatPk)" class="w-full py-4 text-gray-800 dark:text-gray-100 text-[17px] active:bg-gray-100 dark:bg-gray-950 rounded-lg text-center font-medium">🔍 搜索记录</button>
         <div class="h-[1px] bg-gray-100 dark:bg-gray-950 my-1"></div>
         <button onclick="closeChatMoreModal(); openExportModal(currentChatPk)" class="w-full py-4 text-blue-600 text-[17px] active:bg-blue-50 dark:active:bg-gray-950 rounded-lg text-center font-medium">📤 导出记录</button>
@@ -8700,6 +8722,8 @@ Disclaimer / 免责声明:
     let currentChatPk = null,
       peerPkToViewGlobal = null,
       hiddenMsgsSet = new Set,
+      clearedChatTimestamps = {},
+      deletedContacts = new Set,
       isSelectMode = !1,
       selectedMsgIds = new Set,
       touchTimer = null,
@@ -9437,7 +9461,8 @@ Disclaimer / 免责声明:
               delete lightProfiles[pk].picture;
             }
           saveEncryptedData("profiles_cache", lightProfiles), saveEncryptedData("contacts_cache", contacts),
-            saveEncryptedData("pinned_chats", Array.from(pinnedChats)), saveEncryptedData("hidden_chats", Array.from(hiddenChats));
+            saveEncryptedData("pinned_chats", Array.from(pinnedChats)), saveEncryptedData("hidden_chats", Array.from(hiddenChats)),
+            saveEncryptedData("cleared_chat_ts", clearedChatTimestamps), saveEncryptedData("deleted_contacts", Array.from(deletedContacts));
         } catch (e) {
           console.error("Cache sync error:", e);
         }
@@ -9519,8 +9544,8 @@ Disclaimer / 免责声明:
 
     async function initializeApp() {
       requestNotificationPermission(), document.getElementById("login-screen").classList.add("hidden"),
-        document.getElementById("app-screen").classList.remove("hidden"), window.innerWidth >= 768 && document.getElementById("welcome-area").classList.remove("hidden"),
-        document.getElementById("my-npub-display").value = nt.nip19.npubEncode(pubKeyHex),
+        document.getElementById("app-screen").classList.remove("hidden"), window.innerWidth >= 768 && (document.getElementById("welcome-area").style.display = "",
+          document.getElementById("welcome-area").classList.remove("hidden")), document.getElementById("my-npub-display").value = nt.nip19.npubEncode(pubKeyHex),
         currentRelayUrl = localStorage.getItem(`dage_relay_${pubKeyHex}`) || "wss://relay.snort.social",
         lockTimeMins = parseInt(localStorage.getItem(`dage_locktime_${pubKeyHex}`) || "60"),
         document.getElementById("current-relay-display").innerText = maskRelayUrl(currentRelayUrl),
@@ -9542,7 +9567,9 @@ Disclaimer / 免责声明:
       let pArr = await loadEncryptedData("pinned_chats", []);
       pinnedChats = new Set(pArr);
       let hArr = await loadEncryptedData("hidden_chats", []);
-      hiddenChats = new Set(hArr), "1" === localStorage.getItem(`dage_exited_official_${pubKeyHex}`) || groups[OFFICIAL_GROUP.id] || (groups[OFFICIAL_GROUP.id] = {
+      hiddenChats = new Set(hArr), clearedChatTimestamps = await loadEncryptedData("cleared_chat_ts", {});
+      let dContacts = await loadEncryptedData("deleted_contacts", []);
+      deletedContacts = new Set(dContacts), "1" === localStorage.getItem(`dage_exited_official_${pubKeyHex}`) || groups[OFFICIAL_GROUP.id] || (groups[OFFICIAL_GROUP.id] = {
         name: OFFICIAL_GROUP.name,
         key_hex: OFFICIAL_GROUP.key,
         type: OFFICIAL_GROUP.type,
@@ -9660,7 +9687,7 @@ Disclaimer / 免责声明:
           }
           let div = document.createElement("div");
           div.className = "flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:bg-gray-800 transition rounded-lg",
-            div.innerHTML = `\n                    <div class="flex-1 min-w-0 pr-2">\n                        <div class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate flex items-center">\n                            ${url} ${trustHtml}\n                        </div>\n                        <div class="text-xs mt-1 flex items-center space-x-3">\n                            <span class="${statusColor} font-bold">${statusText}</span>\n                            <span class="text-gray-400">延迟: ${pingText}</span>\n                        </div>\n                    </div>\n                    <button onclick="removeRelayNode('${url}')" class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition active:scale-95 shrink-0" title="删除该节点">\n                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>\n                    </button>\n                `,
+            div.innerHTML = `\n                    <div class="flex-1 min-w-0 pr-2">\n                        <div class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate flex items-center">\n                            ${url} ${trustHtml}\n                        </div>\n                        <div class="text-xs mt-1 flex items-center space-x-3">\n                            <span class="${statusColor} font-bold">${statusText}</span>\n                            <span class="text-gray-400">延迟: ${pingText}</span>\n                        </div>\n                    </div>\n                    <div class="flex space-x-1 shrink-0">\n                        <button onclick="copyText('${url}'); alert('节点地址已复制！')" class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition active:scale-95" title="复制该节点">\n                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>\n                        </button>\n                        <button onclick="removeRelayNode('${url}')" class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition active:scale-95" title="删除该节点">\n                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>\n                        </button>\n                    </div>\n                `,
             list.appendChild(div);
         }), pubKeyHex && localRelayBlocklist.size > 0)) {
         let divTitle = document.createElement("div");
@@ -9947,9 +9974,10 @@ Disclaimer / 免责声明:
     }
 
     function _processDecryptedMessage(peerPk, msgId, senderPk, decryptedText, timestamp, encType, replyId = null) {
-      if (messages[peerPk] || (messages[peerPk] = []), !messages[peerPk].find(function(m) {
-          return m.id === msgId;
-        })) {
+      if (!(clearedChatTimestamps[peerPk] && timestamp <= clearedChatTimestamps[peerPk] || (messages[peerPk] || (messages[peerPk] = []),
+          messages[peerPk].find(function(m) {
+            return m.id === msgId;
+          })))) {
         let isNewRealTimeMsg = !0;
         timestamp <= (lastReadWatermarks[peerPk] || 0) && (isNewRealTimeMsg = !1);
         let isAtMe = !1,
@@ -10087,7 +10115,7 @@ Disclaimer / 免责声明:
         else if ("recall" === type && currentActionIsMe) {
         let m = messages[currentChatPk].find(x => x.id === id);
         if (!m) return;
-        if (Math.floor(Date.now() / 1e3) - m.time > 86400) return void alert("❌ 消息已超过 24 小时，无法撤回");
+        if (Math.floor(Date.now() / 1e3) - m.time > 604800) return void alert("❌ 消息已超过 168 小时 (7天)，无法撤回");
         if (!confirm("确定要撤回这条消息吗？\n(撤回指令将广播全网，双方同步销毁)")) return;
         await publishEvent(5, "recall", [
             ["e", id],
@@ -10435,9 +10463,9 @@ Disclaimer / 免责声明:
       if (!currentChatPk) return;
       let msgs = messages[currentChatPk] || [];
       if (0 === msgs.length) return alert("暂无聊天记录");
-      confirm("确定要清空与该联系人的所有本地消息记录吗？\n(清空后无法恢复，且不影响对方界面)") && (msgs.forEach(m => hiddenMsgsSet.add(m.id)),
-        messages[currentChatPk] = [], unreadCounts[currentChatPk] = 0, syncLocalEncryptedCache(),
-        renderMessages(!1), renderContacts());
+      confirm("确定要清空与该联系人的所有本地消息记录吗？\n(清空后无法恢复，且不会影响对方的记录)") && (msgs.forEach(m => hiddenMsgsSet.add(m.id)),
+        messages[currentChatPk] = [], unreadCounts[currentChatPk] = 0, clearedChatTimestamps[currentChatPk] = Math.floor(Date.now() / 1e3),
+        syncLocalEncryptedCache(), renderMessages(!1), renderContacts());
     }
 
     function renderContacts() {
@@ -10559,16 +10587,20 @@ Disclaimer / 免责声明:
         titleBlinkTimer && (clearInterval(titleBlinkTimer), titleBlinkTimer = null, document.title = originalTitle);
       let mentionBtn = document.getElementById("btn-mention");
       mentionBtn && (groups[pk] ? mentionBtn.classList.remove("hidden") : mentionBtn.classList.add("hidden")),
-        exitSelectMode(), renderContacts(), updateChatHeader(), document.getElementById("welcome-area").classList.add("hidden"),
-        document.getElementById("chat-header").classList.remove("hidden"), document.getElementById("message-list").classList.remove("hidden"),
-        document.getElementById("chat-input-area").classList.remove("hidden"), document.getElementById("chat-area").classList.remove("translate-x-full"),
-        renderMessages(!0), ModalManager.push("chatPanel", closeChat);
+        exitSelectMode(), renderContacts(), updateChatHeader(), document.getElementById("welcome-area").style.display = "none",
+        document.getElementById("welcome-area").classList.add("hidden"), document.getElementById("chat-header").classList.remove("hidden"),
+        document.getElementById("message-list").classList.remove("hidden"), document.getElementById("chat-input-area").classList.remove("hidden"),
+        document.getElementById("chat-area").classList.remove("translate-x-full"), renderMessages(!0),
+        ModalManager.push("chatPanel", closeChat);
     }
 
     function closeChat(e, fromPopState = !1) {
       e && "function" == typeof e.stopPropagation && e.stopPropagation(), exitSelectMode(),
         document.getElementById("chat-area").classList.add("translate-x-full"), currentChatPk = null,
-        renderContacts(), fromPopState || ModalManager.pop("chatPanel");
+        renderContacts(), window.innerWidth >= 768 && (document.getElementById("welcome-area").style.display = "",
+          document.getElementById("welcome-area").classList.remove("hidden")), document.getElementById("chat-header").classList.add("hidden"),
+        document.getElementById("message-list").classList.add("hidden"), document.getElementById("chat-input-area").classList.add("hidden"),
+        fromPopState || ModalManager.pop("chatPanel");
     }
 
     function updateChatHeader() {
@@ -10695,8 +10727,24 @@ Disclaimer / 免责声明:
               bubbleStyleClass = isMe ? "bg-blue-400 text-white rounded-tr-sm border border-blue-400 opacity-80" : "bg-gray-100 dark:bg-gray-950 text-gray-500 dark:text-gray-400 rounded-tl-sm border border-gray-200 dark:border-gray-700 shadow-none",
               quoteHtml = "";
           }
-          let timeColorClass = isMe ? "text-blue-200" : isTargetMe ? "text-red-400" : "text-gray-400",
-            bubbleHtml = `\n                  <div class="flex flex-col flex-1 ${isMe ? "items-end" : "items-start"} no-select"\n                      ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})"\n                      ontouchend="handleTouchEnd()" ontouchmove="handleTouchMove()" ontouchcancel="handleTouchMove()"\n                      oncontextmenu="handleRightClick(event, '${m.id}', ${isMe})">\n                      ${senderNameHtml}\n                      <div class="max-w-[75%] md:max-w-md rounded-2xl p-3 shadow-sm ${bubbleStyleClass}">\n                          ${quoteHtml}\n                          <div class="text-[15px] whitespace-pre-wrap bubble-text leading-relaxed max-h-[50vh] overflow-y-auto no-scrollbar">${contentHtml}</div>\n                          <div class="text-[11px] text-right mt-1.5 ${timeColorClass}">${timeStr}</div>\n                      </div>\n                  </div>\n              `;
+          let alignClass = isMe ? "items-end" : "items-start",
+            timeColorClass = isMe ? "text-blue-200" : isTargetMe ? "text-red-400" : "text-gray-400",
+            avatarHtml = "";
+          if (groups[currentChatPk] && 1 === groups[currentChatPk].type) avatarHtml = '<div class="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white text-base font-bold shadow-sm shrink-0">🎭</div>';
+          else {
+            let p = profiles[m.sender] || {};
+            if (isMe) {
+              let accInfo = accounts.find(a => a.pubkey === pubKeyHex) || {};
+              p = profiles[pubKeyHex] || accInfo;
+            }
+            let picUrl = formatAvatarUrl(p.picture),
+              fallbackChar = (p.name || (isMe ? "我" : "?")).substring(0, 1);
+            if (picUrl) avatarHtml = `<img src="${picUrl}" class="w-10 h-10 rounded-full object-cover shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition active:scale-95" onclick="showPeerProfileModal('${m.sender}')">`;
+            else {
+              avatarHtml = `<div class="w-10 h-10 rounded-full ${isMe ? "bg-blue-500" : "bg-gray-400"} flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition active:scale-95" onclick="showPeerProfileModal('${m.sender}')">${escapeHTML(fallbackChar)}</div>`;
+            }
+          }
+          let bubbleHtml = `\n                  <div class="flex ${isMe ? "flex-row-reverse" : "flex-row"} w-full items-start mb-1 mt-1">\n                      <div class="${isMe ? "ml-2" : "mr-2"} pt-1 no-select shrink-0">\n                          ${avatarHtml}\n                      </div>\n                      <div class="flex flex-col flex-1 ${alignClass} min-w-0 no-select"\n                          ontouchstart="handleTouchStart(event, '${m.id}', ${isMe})"\n                          ontouchend="handleTouchEnd()" ontouchmove="handleTouchMove()" ontouchcancel="handleTouchMove()"\n                          oncontextmenu="handleRightClick(event, '${m.id}', ${isMe})">\n                          ${senderNameHtml}\n                          <div class="max-w-[90%] md:max-w-md rounded-2xl p-3 shadow-sm ${bubbleStyleClass}">\n                              ${quoteHtml}\n                              <div class="text-[15px] whitespace-pre-wrap bubble-text leading-relaxed max-h-[50vh] overflow-y-auto no-scrollbar">${contentHtml}</div>\n                              <div class="text-[11px] text-right mt-1.5 ${timeColorClass}">${timeStr}</div>\n                          </div>\n                      </div>\n                  </div>\n              `;
           wrapper.innerHTML = selectHtml + bubbleHtml, list.appendChild(wrapper);
         }), isLocateMode) {
         let targetIdx = msgs.findIndex(m => m.id === targetMsgId);
@@ -11016,7 +11064,8 @@ Disclaimer / 免责声明:
         } else {
           badge.classList.add("hidden");
           let blockBtn = blocklist.has(targetPk) ? `<button onclick="toggleBlockUser('${targetPk}', false)" class="w-full mt-3 bg-white dark:bg-gray-900 text-green-600 py-3 rounded-xl hover:bg-green-50 dark:hover:bg-gray-800 transition border border-green-200 dark:border-green-800 shadow-sm active:scale-95 text-sm font-bold">✅ 解除屏蔽</button>` : `<button onclick="toggleBlockUser('${targetPk}', true)" class="w-full mt-3 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition border border-gray-300 dark:border-gray-700 shadow-sm active:scale-95 text-sm font-bold">🚫 屏蔽此人</button>`;
-          actionArea.innerHTML = `\n                        <button onclick="removeContactFromModal('${targetPk}')" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition shadow-sm font-bold border border-red-200 dark:border-red-800 active:scale-95 text-sm flex items-center justify-center">彻底删除好友</button>\n                        ${blockBtn}\n                    `;
+          escapeHTML(displayName).replace(/'/g, "\\'");
+          actionArea.innerHTML = `\n                        <button onclick="closePeerProfileModal(); selectContact('${targetPk}'); switchSidebarTab('chats');" class="w-full bg-blue-600 text-white py-3 mb-3 rounded-xl hover:bg-blue-700 transition shadow font-bold active:scale-95 text-sm flex items-center justify-center">💬 发起私聊</button>\n                        <button onclick="removeContactFromModal('${targetPk}')" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-3 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition shadow-sm font-bold border border-red-200 dark:border-red-800 active:scale-95 text-sm flex items-center justify-center">彻底删除好友</button>\n                        ${blockBtn}\n                    `;
         }
         document.getElementById("peer-profile-modal").classList.remove("hidden");
         let contentBox = document.getElementById("peer-profile-content");
@@ -11044,8 +11093,8 @@ Disclaimer / 免责声明:
 
     async function addContactFromModal(pk) {
       if (contacts.includes(pk)) return;
-      contacts.push(pk), syncLocalEncryptedCache(), await syncBackupToCloud(), renderContacts(),
-        closePeerProfileModal(), 0 === (messages[pk] || []).length ? (selectContact(pk),
+      contacts.push(pk), deletedContacts.delete(pk), syncLocalEncryptedCache(), await syncBackupToCloud(),
+        renderContacts(), closePeerProfileModal(), 0 === (messages[pk] || []).length ? (selectContact(pk),
           setTimeout(async () => {
             let inputEl = document.getElementById("msg-input");
             inputEl && (inputEl.value = "👋 我已将你添加为联系人，现在我们可以开始聊天了。", await sendMessage());
@@ -11054,7 +11103,8 @@ Disclaimer / 免责声明:
 
     async function removeContactFromModal(pk) {
       confirm("确定要删除此好友吗？\n删除后对方将被标记为[陌生人]，但历史聊天记录会保留。") && (contacts = contacts.filter(c => c !== pk),
-        syncLocalEncryptedCache(), await syncBackupToCloud(), renderContacts(), closePeerProfileModal());
+        deletedContacts.add(pk), syncLocalEncryptedCache(), await syncBackupToCloud(), renderContacts(),
+        closePeerProfileModal());
     }
 
     function showProfileModal() {
@@ -11419,8 +11469,8 @@ Disclaimer / 免责声明:
           payload = new Uint8Array(24 + ciphertext.length);
         payload.set(nonce, 0), payload.set(ciphertext, 24), inviteLink = `dage://invite/ghost/${bytesToUrlSafeBase64(payload)}`;
       } else inviteLink = `dage://invite/normal/${bytesToUrlSafeBase64((new TextEncoder).encode(rawDataStr))}`;
-      document.getElementById("invite-code-display").value = inviteLink, document.getElementById("invite-code-modal").classList.remove("hidden"),
-        ModalManager.push("inviteCode", closeInviteCodeModal);
+      document.getElementById("invite-code-display").value = inviteLink, document.getElementById("invite-code-display").setAttribute("data-gname", grp.name),
+        document.getElementById("invite-code-modal").classList.remove("hidden"), ModalManager.push("inviteCode", closeInviteCodeModal);
     }
 
     async function joinGroup(inviteStr) {
@@ -11513,7 +11563,7 @@ Disclaimer / 免责声明:
           let pkToAdd = val.startsWith("npub") ? nt.nip19.decode(val).data : val;
           if (pkToAdd === pubKeyHex || contacts.includes(pkToAdd)) return alert("无效操作或已存在");
           if (!/^[0-9a-f]{64}$/i.test(pkToAdd)) return alert("❌ 公钥格式错误！必须是 npub 开头或 64 位 16 进制字符");
-          contacts.push(pkToAdd), document.getElementById("new-contact-input").value = "",
+          contacts.push(pkToAdd), deletedContacts.delete(pkToAdd), document.getElementById("new-contact-input").value = "",
             syncLocalEncryptedCache(), await syncBackupToCloud(), renderContacts(), 0 === (messages[pkToAdd] || []).length ? (selectContact(pkToAdd),
               setTimeout(async () => {
                 let inputEl = document.getElementById("msg-input");
@@ -11571,9 +11621,12 @@ Disclaimer / 免责声明:
         document.getElementById("theme-toggle-btn").innerText = "🌙 切换暗色"), localStorage.setItem("dage_theme", theme);
     }
 
-    function showQrCode(title, content) {
-      document.getElementById("qr-display-title").innerText = title, document.getElementById("qr-display-desc").innerText = content,
-        document.getElementById("qr-display-canvas").innerHTML = "", new QRCode(document.getElementById("qr-display-canvas"), {
+    function showQrCode(title, content, subTitle = "") {
+      document.getElementById("qr-display-title").innerText = title;
+      let subtitleEl = document.getElementById("qr-display-subtitle");
+      subTitle ? (subtitleEl.innerText = subTitle, subtitleEl.classList.remove("hidden")) : subtitleEl.classList.add("hidden"),
+        document.getElementById("qr-display-desc").innerText = content, document.getElementById("qr-display-canvas").innerHTML = "",
+        new QRCode(document.getElementById("qr-display-canvas"), {
           text: content,
           width: 256,
           height: 256,
@@ -11598,6 +11651,15 @@ Disclaimer / 免责声明:
         }, errorMessage => {}).catch(err => {
           alert("未检测到摄像头或未获得权限，请在系统设置中允许浏览器访问摄像头。\n详细信息：" + err), stopQrScan();
         }));
+    }
+
+    function scanQrFromFile(event) {
+      const file = event.target.files[0];
+      file && (html5QrCode || (html5QrCode = new Html5Qrcode("qr-reader")), html5QrCode.scanFile(file, !0).then(decodedText => {
+        stopQrScan(), handleScanResult(decodedText);
+      }).catch(err => {
+        alert("❌ 无法从该图片中识别到二维码！");
+      }), event.target.value = "");
     }
 
     function stopQrScan() {
@@ -11718,10 +11780,12 @@ Disclaimer / 免责声明:
     const contactsListEl = document.getElementById("contacts-list");
 
     function openChatMoreModal() {
-      currentChatPk && (document.getElementById("chat-more-modal").classList.remove("hidden"),
-        setTimeout(() => {
+      if (!currentChatPk) return;
+      let profileBtn = document.getElementById("chat-more-profile-btn");
+      groups[currentChatPk] ? profileBtn.innerText = 1 === groups[currentChatPk].type ? "⚡ 查看共享群资料" : "📢 查看群资料" : profileBtn.innerText = "👤 查看联系人资料",
+        document.getElementById("chat-more-modal").classList.remove("hidden"), setTimeout(() => {
           document.getElementById("chat-more-content").classList.remove("translate-y-full");
-        }, 10), ModalManager.push("chatMore", closeChatMoreModal));
+        }, 10), ModalManager.push("chatMore", closeChatMoreModal);
     }
 
     function closeChatMoreModal(eOrFromPopState) {
@@ -11759,7 +11823,8 @@ Disclaimer / 免责声明:
     }
 
     function clearCurrentChatHistoryForHide(pk) {
-      (messages[pk] || []).forEach(m => hiddenMsgsSet.add(m.id)), messages[pk] = [], unreadCounts[pk] = 0;
+      (messages[pk] || []).forEach(m => hiddenMsgsSet.add(m.id)), messages[pk] = [], unreadCounts[pk] = 0,
+        clearedChatTimestamps[pk] = Math.floor(Date.now() / 1e3);
     }
 
     contactsListEl.addEventListener("touchstart", e => {
