@@ -7934,7 +7934,7 @@ var __Html5QrcodeLibrary__;(()=>{var t={449:function(t,e,r){!function(t){"use st
   <div id="login-screen" class="w-full h-full md:h-auto md:max-w-md bg-white dark:bg-gray-900 md:rounded-xl shadow-lg p-6 md:p-8 flex flex-col justify-center hidden z-50">
     <div class="max-w-sm w-full mx-auto" id="account-list-area">
       <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-1">DageChat 🔐</h2>
-      <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.62</div>
+      <div class="text-center text-xs text-blue-500 font-mono mb-6 font-bold tracking-widest">v0.1.63</div>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 text-center">选择账号登录</p>
 
       <div id="saved-accounts-list" class="space-y-3 mb-6 max-h-60 overflow-y-auto no-scrollbar">
@@ -8947,11 +8947,11 @@ var __Html5QrcodeLibrary__;(()=>{var t={449:function(t,e,r){!function(t){"use st
       return replyTag ? replyTag[1] : eTags[eTags.length - 1][1];
     }
 
-    let dbInstance = null;
+    let dbInstance = null,
+      dbInitPromise = null;
 
     function initDB() {
-      return new Promise((resolve, reject) => {
-        if (dbInstance) return resolve(dbInstance);
+      return dbInstance ? Promise.resolve(dbInstance) : dbInitPromise || (dbInitPromise = new Promise((resolve, reject) => {
         let request = indexedDB.open("DageChatDB", 1);
         request.onerror = event => reject("IndexedDB error: " + event.target.error), request.onsuccess = event => {
           dbInstance = event.target.result, resolve(dbInstance);
@@ -8961,7 +8961,7 @@ var __Html5QrcodeLibrary__;(()=>{var t={449:function(t,e,r){!function(t){"use st
             keyPath: "key"
           });
         };
-      });
+      }), dbInitPromise);
     }
 
     async function setDBItem(key, value) {
@@ -9448,16 +9448,18 @@ var __Html5QrcodeLibrary__;(()=>{var t={449:function(t,e,r){!function(t){"use st
       })) : showAddAccountArea();
     }
 
-    function deleteAccount(e, pk) {
+    async function deleteAccount(e, pk) {
       if (e.stopPropagation(), !confirm("确定要从本机移除该账号吗？(本地历史消息记录也会丢失)")) return;
-      accounts = accounts.filter(a => a.pubkey !== pk), localStorage.setItem("dage_accounts", JSON.stringify(accounts));
-      ["hidden_ids", "msg_cache", "unread_counts", "last_read_watermarks", "cleared_chat_ts", "deleted_contacts", "deleted_groups", "groups_cache", "contacts_cache", "pinned_chats", "hidden_chats", "profiles_cache"].forEach(k => {
-        localStorage.removeItem(`dage_enc_${k}_${pk}`), removeDBItem(`dage_enc_${k}_${pk}`);
-      }), void 0 !== profiles && Object.keys(profiles).forEach(p => {
-        localStorage.removeItem("dage_avatar_" + p), removeDBItem("dage_avatar_" + p);
-      });
-      ["dage_relay", "dage_relay_block", "dage_blocklist", "lastActive", "dage_locktime", "dage_enable_sys_notify", "dage_exited_official"].forEach(k => localStorage.removeItem(`${k}_${pk}`)),
-        renderAccountList();
+      e.target.innerHTML = '<svg class="animate-spin w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>',
+        accounts = accounts.filter(a => a.pubkey !== pk), localStorage.setItem("dage_accounts", JSON.stringify(accounts));
+      const encKeys = ["hidden_ids", "msg_cache", "unread_counts", "last_read_watermarks", "cleared_chat_ts", "deleted_contacts", "deleted_groups", "groups_cache", "contacts_cache", "pinned_chats", "hidden_chats", "profiles_cache"];
+      for (let k of encKeys) localStorage.removeItem(`dage_enc_${k}_${pk}`), await removeDBItem(`dage_enc_${k}_${pk}`);
+      if (void 0 !== profiles)
+        for (let p of Object.keys(profiles)) localStorage.removeItem("dage_avatar_" + p),
+          await removeDBItem("dage_avatar_" + p);
+      const plainKeys = ["dage_relay", "dage_relay_block", "dage_blocklist", "lastActive", "dage_locktime", "dage_enable_sys_notify", "dage_exited_official"];
+      for (let k of plainKeys) localStorage.removeItem(`${k}_${pk}`);
+      renderAccountList();
     }
 
     function promptLogin(pk) {
