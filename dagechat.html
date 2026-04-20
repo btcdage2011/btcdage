@@ -2407,6 +2407,27 @@ Disclaimer / 免责声明:
 
                             let gNonces = await loadEncryptedData('ghost_nonces',[]);
                             myGhostNonces = new Set(Array.isArray(gNonces) ? gNonces :[]);
+                            // === 核心修复：初始化完成时，立刻渲染左上角自己的头像和昵称 ===
+                            let myProf = profiles[pubKeyHex] || accInfo || {};
+                            document.getElementById('my-name').innerText = myProf.name || '我';
+                            if (myProf.picture) {
+                                let picUrl = formatAvatarUrl(myProf.picture);
+                                if (picUrl) {
+                                    document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                                }
+                            }
+
+                            // === 新增：注入官方测试频道 ===
+                            let exitedOfficial = localStorage.getItem(`dage_exited_official_${pubKeyHex}`);
+                            if (exitedOfficial !== '1' && !groups[OFFICIAL_GROUP.id]) {
+                                groups[OFFICIAL_GROUP.id] = {
+                                    name: OFFICIAL_GROUP.name,
+                                    key_hex: OFFICIAL_GROUP.key,
+                                    type: OFFICIAL_GROUP.type,
+                                    owner: OFFICIAL_GROUP.owner
+                                };
+                                syncLocalEncryptedCache();
+                            }
 
                             try {
                                 let savedBlocklist = localStorage.getItem(`dage_blocklist_${pubKeyHex}`);
