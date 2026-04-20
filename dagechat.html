@@ -2358,16 +2358,14 @@ Disclaimer / 免责声明:
             document.getElementById('current-relay-display').innerText = maskRelayUrl(currentRelayUrl);
             updateActivity();
 
-            // 核心修复：防止手机端读取到 null 导致 TypeError 宕机
-                    let hiddenArr = await loadEncryptedData('hidden_ids',[]);
-                    hiddenMsgsSet = new Set(Array.isArray(hiddenArr) ? hiddenArr :[]);
-                    messages = await loadEncryptedData('msg_cache', {}) || {};
-                    unreadCounts = await loadEncryptedData('unread_counts', {}) || {};
-                    lastReadWatermarks = await loadEncryptedData('last_read_watermarks', {}) || {};
-                    groups = await loadEncryptedData('groups_cache', {}) || {};
-                    if (typeof groups !== 'object') groups = {};
-                    profiles = await loadEncryptedData('profiles_cache', {}) || {};
-                    if (typeof profiles !== 'object') profiles = {};
+            let hiddenArr = await loadEncryptedData('hidden_ids',[]);
+            hiddenMsgsSet = new Set(hiddenArr);
+            messages = await loadEncryptedData('msg_cache', {});
+            unreadCounts = await loadEncryptedData('unread_counts', {});
+            lastReadWatermarks = await loadEncryptedData('last_read_watermarks', {}); // 核心新增：载入水位线
+            groups = await loadEncryptedData('groups_cache', {}); // 载入群组
+            // === 新增：优先从本地加密缓存中读取资料和好友列表 ===
+            profiles = await loadEncryptedData('profiles_cache', {});
             // 核心修复：加入严密的 try-catch 保护。防止手机端 WebView 拦截 DB 请求导致后续的网络重连代码被阻断
                     for (let pk in profiles) {
                         let savedPic = null;
@@ -2384,62 +2382,57 @@ Disclaimer / 免责声明:
                         }
                         if (savedPic) profiles[pk].picture = savedPic;
                     }
-                    contacts = await loadEncryptedData('contacts_cache', []) || [];
-                            if (!Array.isArray(contacts)) contacts =[];
+            contacts = await loadEncryptedData('contacts_cache', []);
+            // 核心补充：如果本地配置有昵称，但云端/缓存还没有，说明是新号，立刻应用并静默广播
+            let accInfo = accounts.find(a => a.pubkey === pubKeyHex);
+            if (accInfo && accInfo.name && !profiles[pubKeyHex]?.name) {
+                if (!profiles[pubKeyHex]) profiles[pubKeyHex] = {};
+                profiles[pubKeyHex].name = accInfo.name;
+                // 静默发送 Kind 0，向全网宣告自己的昵称
+                publishEvent(0, JSON.stringify({ name: accInfo.name })).catch(()=>{});
+            }
+            let pArr = await loadEncryptedData('pinned_chats',[]);
+            pinnedChats = new Set(pArr);
+            let hArr = await loadEncryptedData('hidden_chats',[]);
+            hiddenChats = new Set(hArr);
+            clearedChatTimestamps = await loadEncryptedData('cleared_chat_ts', {});
+            let dContacts = await loadEncryptedData('deleted_contacts', []);
+            deletedContacts = new Set(dContacts);
+            let dGroups = await loadEncryptedData('deleted_groups', []);
+            deletedGroups = new Set(dGroups);
 
-                            let accInfo = accounts.find(a => a.pubkey === pubKeyHex);
-                            if (accInfo && accInfo.name && !profiles[pubKeyHex]?.name) {
-                                if (!profiles[pubKeyHex]) profiles[pubKeyHex] = {};
-                                profiles[pubKeyHex].name = accInfo.name;
-                                publishEvent(0, JSON.stringify({ name: accInfo.name })).catch(()=>{});
-                            }
+            // 核心修复：加载本地幽灵群发言特征码，防止刷新后自己的消息错乱
+            let gNonces = await loadEncryptedData('ghost_nonces', []);
+            myGhostNonces = new Set(gNonces);
 
-                            let pArr = await loadEncryptedData('pinned_chats',[]);
-                            pinnedChats = new Set(Array.isArray(pArr) ? pArr :[]);
-                            let hArr = await loadEncryptedData('hidden_chats',[]);
-                            hiddenChats = new Set(Array.isArray(hArr) ? hArr :[]);
-                            clearedChatTimestamps = await loadEncryptedData('cleared_chat_ts', {}) || {};
+            // === 核心修复：初始化完成时，立刻渲染左上角自己的头像和昵称 ===
+            let myProf = profiles[pubKeyHex] || accInfo || {};
+            document.getElementById('my-name').innerText = myProf.name || '我';
+            if (myProf.picture) {
+                let picUrl = formatAvatarUrl(myProf.picture);
+                if (picUrl) {
+                    document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
+                }
+            }
 
-                            let dContacts = await loadEncryptedData('deleted_contacts',[]);
-                            deletedContacts = new Set(Array.isArray(dContacts) ? dContacts :[]);
-                            let dGroups = await loadEncryptedData('deleted_groups',[]);
-                            deletedGroups = new Set(Array.isArray(dGroups) ? dGroups : []);
-
-                            let gNonces = await loadEncryptedData('ghost_nonces',[]);
-                            myGhostNonces = new Set(Array.isArray(gNonces) ? gNonces :[]);
-                            // === 核心修复：初始化完成时，立刻渲染左上角自己的头像和昵称 ===
-                            let myProf = profiles[pubKeyHex] || accInfo || {};
-                            document.getElementById('my-name').innerText = myProf.name || '我';
-                            if (myProf.picture) {
-                                let picUrl = formatAvatarUrl(myProf.picture);
-                                if (picUrl) {
-                                    document.getElementById('my-avatar').innerHTML = `<img src="${picUrl}" class="w-full h-full object-cover">`;
-                                }
-                            }
-
-                            // === 新增：注入官方测试频道 ===
-                            let exitedOfficial = localStorage.getItem(`dage_exited_official_${pubKeyHex}`);
-                            if (exitedOfficial !== '1' && !groups[OFFICIAL_GROUP.id]) {
-                                groups[OFFICIAL_GROUP.id] = {
-                                    name: OFFICIAL_GROUP.name,
-                                    key_hex: OFFICIAL_GROUP.key,
-                                    type: OFFICIAL_GROUP.type,
-                                    owner: OFFICIAL_GROUP.owner
-                                };
-                                syncLocalEncryptedCache();
-                            }
-
-                            try {
-                                let savedBlocklist = localStorage.getItem(`dage_blocklist_${pubKeyHex}`);
-                                let pList = savedBlocklist ? JSON.parse(savedBlocklist) :[];
-                                blocklist = new Set(Array.isArray(pList) ? pList :[]);
-                            } catch(e) { blocklist = new Set(); }
-
-                            try {
-                                let savedRelayBlock = localStorage.getItem(`dage_relay_block_${pubKeyHex}`);
-                                let rList = savedRelayBlock ? JSON.parse(savedRelayBlock) :[];
-                                localRelayBlocklist = new Set(Array.isArray(rList) ? rList :[]);
-                            } catch(e) { localRelayBlocklist = new Set(); }
+            // === 新增：注入官方测试频道 ===
+            let exitedOfficial = localStorage.getItem(`dage_exited_official_${pubKeyHex}`);
+            if (exitedOfficial !== '1' && !groups[OFFICIAL_GROUP.id]) {
+                groups[OFFICIAL_GROUP.id] = {
+                    name: OFFICIAL_GROUP.name,
+                    key_hex: OFFICIAL_GROUP.key,
+                    type: OFFICIAL_GROUP.type,
+                    owner: OFFICIAL_GROUP.owner
+                };
+                syncLocalEncryptedCache();
+            }
+            // =====================================
+            // === 新增：读取黑名单 ===
+            let savedBlocklist = localStorage.getItem(`dage_blocklist_${pubKeyHex}`);
+            blocklist = savedBlocklist ? new Set(JSON.parse(savedBlocklist)) : new Set();
+            // 读取纯本地 Relay 屏蔽名单
+            let savedRelayBlock = localStorage.getItem(`dage_relay_block_${pubKeyHex}`);
+            localRelayBlocklist = savedRelayBlock ? new Set(JSON.parse(savedRelayBlock)) : new Set();
 
             renderContacts();
             initRelayConnection();
@@ -2452,13 +2445,11 @@ Disclaimer / 免责声明:
 
         // ================= Nostr 网络通讯 =================
         function initRelayConnection() {
-                let savedUrls = localStorage.getItem(`dage_relay_${pubKeyHex}`);
-                if (savedUrls) {
-                    currentRelayUrls = savedUrls.split(',').map(u => u.trim()).filter(u => u.startsWith('ws'));
-                }
-                // 核心修复：如果是空数据，必须保底给足 3 个强力节点，防止单节点在移动网络下被墙导致假死
-                if (currentRelayUrls.length === 0) currentRelayUrls =["wss://relay.damus.io", "wss://relay.primal.net", "wss://chat.boom.money"];
-
+            let savedUrls = localStorage.getItem(`dage_relay_${pubKeyHex}`);
+            if (savedUrls) {
+                currentRelayUrls = savedUrls.split(',').map(u => u.trim()).filter(u => u.startsWith('ws'));
+            }
+            if (currentRelayUrls.length === 0) currentRelayUrls = ["wss://chat.boom.money"];
 
             // 同步到状态对象
             currentRelayUrls.forEach(url => {
