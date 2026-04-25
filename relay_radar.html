@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay Radar | 继电器高可用探测雷达</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <script src="js/nostr.bundle.js"></script>
+    <script src="js/sodium.js"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes radar-scan {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .radar-sweep {
+            background: conic-gradient(from 0deg, transparent 70%, rgba(34, 197, 94, 0.4) 100%);
+            animation: radar-scan 2s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-200 h-screen w-screen overflow-hidden flex flex-col font-mono text-sm">
+
+    <!-- 顶部导航条 -->
+    <div class="h-14 border-b border-gray-800 bg-gray-900 flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="relative w-6 h-6 rounded-full border border-green-500 overflow-hidden flex items-center justify-center bg-gray-900">
+                <div id="radar-anim" class="absolute inset-0 radar-sweep hidden"></div>
+                <div class="w-1 h-1 bg-green-500 rounded-full z-10"></div>
+            </div>
+            <h1 class="text-lg font-bold text-white tracking-widest">RELAY_RADAR <span class="text-xs text-gray-500 ml-2">v1.0 (DGChat 引擎)</span></h1>
+        </div>
+        <div class="flex space-x-6 text-xs font-bold">
+            <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span id="stat-total">总量: 0</span></div>
+            <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-yellow-500"></span><span id="stat-active">测试中: 0</span></div>
+            <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-green-500"></span><span id="stat-success">完美可用: 0</span></div>
+            <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-red-500"></span><span id="stat-failed">拦截/失效: 0</span></div>
+        </div>
+    </div>
+
+    <!-- 主工作区 -->
+    <div class="flex-1 flex overflow-hidden">
+
+        <!-- 左侧控制台 -->
+        <div class="w-1/3 min-w-[350px] border-r border-gray-800 bg-gray-900/50 p-5 flex flex-col">
+            <div class="mb-4">
+                <label class="block text-xs text-gray-400 mb-1 font-bold">🎯 待测节点池 (每行一个 ws:// 或 wss://)</label>
+                <textarea id="input-relays" class="w-full h-48 bg-gray-950 border border-gray-700 rounded-lg p-3 text-xs focus:ring-1 focus:ring-green-500 outline-none resize-none" placeholder="wss://..."></textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <button onclick="fetchPublicRelays()" class="text-[11px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded transition">🌐 从 nostr.watch 自动抓取</button>
+                    <span class="text-[11px] text-gray-500" id="pool-count">0 个节点</span>
+                </div>
+            </div>
+
+            <div class="mb-5 bg-gray-950 border border-gray-800 p-4 rounded-lg">
+                <label class="block text-xs text-gray-400 mb-3 font-bold">⚙️ 扫描参数配置</label>
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs">并发线程数 (Worker Pool)</span>
+                    <input type="number" id="cfg-concurrency" value="10" min="1" max="50" class="w-16 bg-gray-900 border border-gray-700 rounded p-1 text-center text-xs outline-none focus:border-green-500">
+                </div>
+                <div class="text-[10px] text-gray-500 space-y-1 mt-3 border-t border-gray-800 pt-3">
+                    <p>• 连接重试: 最大 3 次 (超时 3s/次)</p>
+                    <p>• 冷却机制: 订阅后强制等待 1000ms 防刷</p>
+                    <p>• 收发重试: 最大 3 次 (超时 4s/次)</p>
+                    <p>• 加密引擎: NIP-59 包装 + PoW8 对称群聊</p>
+                </div>
+            </div>
+
+            <div class="mt-auto space-y-3">
+                <button id="btn-start" onclick="startRadar()" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold shadow-[0_0_15px_rgba(34,197,94,0.3)] transition active:scale-95 flex items-center justify-center">
+                    🚀 开始执行高强度探测
+                </button>
+                <button id="btn-stop" onclick="stopRadar()" class="w-full bg-red-900 hover:bg-red-800 text-red-200 py-3 rounded-lg font-bold transition active:scale-95 hidden">
+                    🛑 紧急中止
+                </button>
+                <button onclick="exportResults()" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-3 rounded-lg font-bold transition border border-gray-700 active:scale-95">
+                    📄 导出“完美可用”名单 (CSV)
+                </button>
+            </div>
+        </div>
+
+        <!-- 右侧输出台 -->
+        <div class="flex-1 bg-gray-950 p-5 flex flex-col relative overflow-hidden">
+            <div class="flex justify-between items-end mb-3 shrink-0">
+                <h2 class="text-sm font-bold text-gray-400">📡 实时探测追踪日志</h2>
+                <button onclick="document.getElementById('log-container').innerHTML=''" class="text-[11px] text-gray-600 hover:text-gray-400">清空日志</button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto no-scrollbar border border-gray-800 rounded-lg bg-[#0a0a0a] p-2 space-y-1" id="log-container">
+                <div class="text-gray-600 text-[11px] text-center mt-10">等待任务开始...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 核心逻辑脚本 -->
+    <script>
+        let nt, _P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn;
+        let isRunning = false;
+        let poolQueue = [];
+        let activeWorkers = 0;
+        let stats = { total: 0, active: 0, success: 0, failed: 0 };
+        let successfulRelays = [];
+
+        // UI 更新辅助函数
+        function logMsg(url, status, message, isHighlight=false) {
+            const container = document.getElementById('log-container');
+            const div = document.createElement('div');
+            let color = "text-gray-400";
+            let bg = "bg-transparent";
+            let icon = "⏳";
+
+            if(status === 'success') { color = "text-green-400"; icon = "✅"; bg = isHighlight ? "bg-green-900/20" : ""; }
+            else if(status === 'warn') { color = "text-yellow-400"; icon = "⚠️"; bg = isHighlight ? "bg-yellow-900/20" : ""; }
+            else if(status === 'error') { color = "text-red-500"; icon = "❌"; bg = isHighlight ? "bg-red-900/20" : ""; }
+            else if(status === 'info') { color = "text-blue-400"; icon = "ℹ️"; }
+
+            div.className = `text-[11px] p-1.5 rounded flex items-start border-b border-gray-900/50 ${bg}`;
+            div.innerHTML = `<span class="mr-2">${icon}</span><span class="w-48 shrink-0 text-gray-500 truncate" title="${url}">${url}</span><span class="${color} ml-2 flex-1">${message}</span>`;
+
+            container.appendChild(div);
+            // 自动滚动到底部
+            if(container.scrollHeight - container.scrollTop < 600) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total').innerText = `总量: ${stats.total}`;
+            document.getElementById('stat-active').innerText = `测试中: ${stats.active}`;
+            document.getElementById('stat-success').innerText = `完美可用: ${stats.success}`;
+            document.getElementById('stat-failed').innerText = `拦截/失效: ${stats.failed}`;
+            document.getElementById('pool-count').innerText = `${poolQueue.length} 个排队中`;
+        }
+
+        // ==========================================
+        // DGChat 密码学核心 (严格还原)
+        // ==========================================
+        function _inv(a) { let t = 0n, newt = 1n, r = _P, newr = (a % _P + _P) % _P; for (; 0n !== newr;) { let q = r / newr, lastt = t; t = newt, newt = lastt - q * newt; let lastr = r; r = newr, newr = lastr - q * newr; } return t %= _P, t < 0n && (t += _P), t; }
+        function _add(p, q) { if (!p) return q; if (!q) return p; let m = 0n; if (p.x === q.x) { if (p.y !== q.y || 0n === p.y) return null; m = 3n * p.x * p.x * _inv(2n * p.y) % _P; } else { let dx = (q.x - p.x) % _P; dx < 0n && (dx += _P); let dy = (q.y - p.y) % _P; dy < 0n && (dy += _P), m = dy * _inv(dx) % _P; } let x = (m * m - p.x - q.x) % _P; x < 0n && (x += _P); let y = (m * (p.x - x) - p.y) % _P; return y < 0n && (y += _P), { x: x, y: y }; }
+        function _mul(k, p) { let r = null, d = p; for (let i = 0n; i < 256n; i++) { let bit = k >> i & 1n, added = _add(r, d); r = 1n === bit ? added : r, d = _add(d, d); } return r; }
+        function _liftX(xHex) { let x = BigInt("0x" + xHex), c = (x * x * x + 7n) % _P, e = (_P + 1n) / 4n, y = 1n, b = c; for (; e > 0n;) 1n & e && (y = y * b % _P), b = b * b % _P, e >>= 1n; if (y = y % 2n == 0n ? y : _P - y, y * y % _P !== c) throw new Error("Invalid point"); return { x: x, y: y }; }
+        async function derivePythonNip44Key(privHex, pubHex) { let pubPoint = _liftX(pubHex), privBigInt = BigInt("0x" + privHex); _mul(privBigInt, { x: BigInt("0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"), y: BigInt("0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8") }).y % 2n != 0n && (privBigInt = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n - privBigInt); let sharedPoint = _mul(privBigInt, pubPoint), sharedBytes = new Uint8Array(33); sharedBytes[0] = sharedPoint.y % 2n == 0n ? 2 : 3; let xHexStr = sharedPoint.x.toString(16).padStart(64, "0"); for (let i = 0; i < 32; i++) sharedBytes[i + 1] = parseInt(xHexStr.substring(2 * i, 2 * i + 2), 16); const sharedPointHash = new Uint8Array(await crypto.subtle.digest("SHA-256", sharedBytes)), keyMaterial = await crypto.subtle.importKey("raw", sharedPointHash, { name: "HKDF" }, !1, ["deriveBits"]); return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: (new TextEncoder).encode("nip44-v2"), info: new Uint8Array(0) }, keyMaterial, 256)); }
+        function bytesToBase64(bytes) { let binary = ""; for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]); return window.btoa(binary); }
+        function base64ToBytes(base64) { let binary_string = window.atob(base64), len = binary_string.length, bytes = new Uint8Array(len); for (let i = 0; i < len; i++) bytes[i] = binary_string.charCodeAt(i); return bytes; }
+
+        async function pythonNip44Encrypt(privHex, pubHex, plaintext) {
+            const key = await derivePythonNip44Key(privHex, pubHex), nonce = sodium.randombytes_buf(24), data = (new TextEncoder).encode(plaintext), ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(data, null, null, nonce, key), payload = new Uint8Array(25 + ciphertext.length);
+            payload[0] = 2; payload.set(nonce, 1); payload.set(ciphertext, 25); return bytesToBase64(payload);
+        }
+        async function pythonNip44Decrypt(privHex, pubHex, payloadB64) {
+            const key = await derivePythonNip44Key(privHex, pubHex); let payload; try { payload = base64ToBytes(payloadB64); } catch (e) { return null; }
+            if (payload.length < 41 || 2 !== payload[0]) return null;
+            const nonce = payload.slice(1, 25), ciphertext = payload.slice(25);
+            try { const plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, ciphertext, null, nonce, key); return (new TextDecoder).decode(plaintextBytes); } catch (e) { return null; }
+        }
+
+        async function makeGiftWrap(myPriv, targetPub, contentStr, kind = 14, extraTags = []) {
+            let now = Math.floor(Date.now() / 1e3), myPub = nt.getPublicKey(myPriv), rumor = { pubkey: myPub, created_at: now, kind: kind, tags: extraTags, content: contentStr };
+            rumor.id = nt.getEventHash(rumor);
+            let seal = { pubkey: myPub, created_at: now, kind: 13, tags: [], content: await pythonNip44Encrypt(myPriv, targetPub, JSON.stringify(rumor)) };
+            seal.id = nt.getEventHash(seal), seal.sig = nt.getSignature(seal, myPriv);
+            let ephemeralPriv = nt.generatePrivateKey(), wrap = { pubkey: nt.getPublicKey(ephemeralPriv), created_at: now, kind: 1059, tags: [["p", targetPub]], content: await pythonNip44Encrypt(ephemeralPriv, targetPub, JSON.stringify(seal)) };
+            wrap.id = nt.getEventHash(wrap), wrap.sig = nt.getSignature(wrap, ephemeralPriv);
+            return wrap;
+        }
+
+        async function unwrapGift(myPriv, wrapEvent) {
+            try {
+                if (1059 !== wrapEvent.kind) return null;
+                let ephemeralPub = wrapEvent.pubkey, sealJsonStr = await pythonNip44Decrypt(myPriv, ephemeralPub, wrapEvent.content);
+                if (!sealJsonStr) return null;
+                let seal = JSON.parse(sealJsonStr), realSenderPub = seal.pubkey, rumorJsonStr = await pythonNip44Decrypt(myPriv, realSenderPub, seal.content);
+                if (!rumorJsonStr) return null;
+                let rumor = JSON.parse(rumorJsonStr); return { senderPubkey: realSenderPub, rumor: rumor };
+            } catch (e) { return null; }
+        }
+
+        async function minePowAndSign(privHex, kind, content, tags, difficulty) {
+            let pubKey = nt.getPublicKey(privHex), createdAt = Math.floor(Date.now() / 1e3), target = BigInt("1") << BigInt(256 - difficulty), nonce = 0, currentTags = tags.filter(t => "nonce" !== t[0]), nonceIndex = currentTags.length;
+            currentTags.push(["nonce", nonce.toString(), difficulty.toString()]);
+            let event = { pubkey: pubKey, created_at: createdAt, kind: kind, tags: currentTags, content: content };
+            for (;;) {
+                currentTags[nonceIndex][1] = nonce.toString();
+                let idHex = nt.getEventHash(event);
+                if (BigInt("0x" + idHex) < target) { event.id = idHex; event.sig = nt.getSignature(event, privHex); return event; }
+                nonce++; if(nonce % 500 === 0) await new Promise(r => setTimeout(r, 0));
+            }
+        }
+
+        function encodeGroupMsg(payloadStr, keyHex) {
+            let keyBytes = new Uint8Array(keyHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16))), nonceBytes = sodium.randombytes_buf(24), dataBytes = (new TextEncoder).encode(payloadStr);
+            let ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(dataBytes, null, null, nonceBytes, keyBytes), finalPayload = new Uint8Array(25 + ciphertext.length);
+            finalPayload[0] = 2; finalPayload.set(nonceBytes, 1); finalPayload.set(ciphertext, 25); return bytesToBase64(finalPayload);
+        }
+
+        function decodeGroupMsg(b64, keyHex) {
+            try {
+                let keyBytes = new Uint8Array(keyHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16))), bytes = base64ToBytes(b64);
+                if (bytes.length < 41 || 2 !== bytes[0]) return null;
+                let nonce = bytes.subarray(1, 25), ciphertext = bytes.subarray(25), plaintextBytes = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, ciphertext, null, nonce, keyBytes);
+                return (new TextDecoder).decode(plaintextBytes);
+            } catch (e) { return null; }
+        }
+
+
+        // ==========================================
+        // 自动化测试引擎 (状态机)
+        // ==========================================
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        // 生成一次性测试材料 (避免每个 Relay 重复计算)
+        async function generateTestMaterials() {
+            logMsg("SYSTEM", "info", "正在生成用于测试的一次性非对称密钥和挖矿载荷...");
+            let skA = nt.generatePrivateKey();
+            let pkA = nt.getPublicKey(skA);
+            let skB = nt.generatePrivateKey();
+            let pkB = nt.getPublicKey(skB);
+
+            // 模拟群组 G
+            let groupKeyHex = Array.from(sodium.randombytes_buf(32)).map(b=>b.toString(16).padStart(2,'0')).join('');
+            let groupId = "grp_" + Date.now().toString().substring(5);
+
+            return { skA, pkA, skB, pkB, groupKeyHex, groupId };
+        }
+
+        async function testSingleRelay(url, materials) {
+            let { skA, pkA, skB, pkB, groupKeyHex, groupId } = materials;
+            let ws = null;
+            let isConnected = false;
+            let startTime = 0;
+
+            // --- 阶段一：连接测试 (重试 3 次) ---
+            for(let i=1; i<=3; i++) {
+                if(!isRunning) return { url, status: 'aborted' };
+                logMsg(url, "info", `[连接阶段] 尝试连接... (${i}/3)`);
+                try {
+                    ws = new WebSocket(url);
+                    await new Promise((resolve, reject) => {
+                        let timeout = setTimeout(() => { ws.close(); reject("timeout"); }, 3000);
+                        ws.onopen = () => { clearTimeout(timeout); isConnected = true; resolve(); };
+                        ws.onerror = () => { clearTimeout(timeout); ws.close(); reject("error"); };
+                    });
+                    break; // 连接成功
+                } catch(e) {
+                    if(ws) { ws.onclose=null; ws.onerror=null; ws.close(); }
+                    await sleep(500); // 失败后等 500ms
+                }
+            }
+
+            if(!isConnected) {
+                return { url, status: 'error', msg: '无法建立 WebSocket 连接' };
+            }
+
+            // --- 阶段二：订阅与冷却 ---
+            logMsg(url, "info", "[订阅阶段] 发送 REQ 订阅请求并强制休眠 1000ms 防刷...");
+            let subId = "test_" + Math.random().toString(36).substr(2, 9);
+            // 账号 B 订阅 自己的私聊(1059) 和 群聊(42)
+            ws.send(JSON.stringify(["REQ", subId,
+                { kinds: [1059], "#p": [pkB], limit: 1 },
+                { kinds: [42], "#g": [groupId], limit: 1 }
+            ]));
+
+            await sleep(1000); // 防刷冷却
+
+            // --- 阶段三：收发测试 (重试 3 次) ---
+            for(let i=1; i<=3; i++) {
+                if(!isRunning) { ws.close(); return { url, status: 'aborted' }; }
+                logMsg(url, "info", `[发信阶段] 构建数据并发射... (${i}/3)`);
+
+                // 每次重试必须用全新的文本，防止 Relay 判定为重复抛弃
+                let uniqueText = `RADAR_PING_${Date.now()}_${Math.random()}`;
+
+                // 1. 构建群聊 42 (需要重新 PoW 挖矿，因为内容变了)
+                let groupPayload = JSON.stringify({ text: uniqueText, name: "A", k: pkA });
+                let b64Content = encodeGroupMsg(groupPayload, groupKeyHex);
+                let event42 = await minePowAndSign(skA, 42, b64Content, [["g", groupId]], 8);
+
+                // 2. 构建私聊 1059 (NIP-59)
+                let event1059 = await makeGiftWrap(skA, pkB, uniqueText, 14, [["p", pkB], ["nonce", Math.random().toString()]]);
+
+                let gotGroup = false;
+                let gotDM = false;
+
+                // 配置监听器
+                let waitPromise = new Promise((resolve, reject) => {
+                    let timeout = setTimeout(() => reject('timeout'), 4000); // 4秒超时
+                    ws.onmessage = async (e) => {
+                        try {
+                            let data = JSON.parse(e.data);
+                            if(data[0] === 'EVENT' && data[1] === subId) {
+                                let ev = data[2];
+                                // 检测到私聊
+                                if(ev.kind === 1059 && !gotDM) {
+                                    let unwrapped = await unwrapGift(skB, ev);
+                                    if(unwrapped && unwrapped.rumor.content === uniqueText) gotDM = true;
+                                }
+                                // 检测到群聊
+                                if(ev.kind === 42 && !gotGroup) {
+                                    let dec = decodeGroupMsg(ev.content, groupKeyHex);
+                                    if(dec) {
+                                        let j = JSON.parse(dec);
+                                        if(j.text === uniqueText) gotGroup = true;
+                                    }
+                                }
+                                // 验证是否双杀
+                                if(gotGroup && gotDM) {
+                                    clearTimeout(timeout);
+                                    resolve('success');
+                                }
+                            }
+                        } catch(err) {}
+                    };
+                });
+
+                startTime = Date.now();
+                // 发射！
+                ws.send(JSON.stringify(["EVENT", event42]));
+                ws.send(JSON.stringify(["EVENT", event1059]));
+
+                try {
+                    await waitPromise;
+                    // 成功通过！
+                    ws.onmessage = null;
+                    ws.close();
+                    let ping = Date.now() - startTime;
+                    return { url, status: 'success', ping: ping };
+                } catch(e) {
+                    // 超时，清除监听器，继续下一次循环重试
+                    ws.onmessage = null;
+                }
+            }
+
+            // 3 次都收发失败，说明能连，但不处理咱们的消息
+            ws.close();
+            return { url, status: 'warn', msg: '支持连接，但拒绝或丢弃加密/PoW载荷' };
+        }
+
+        // ==========================================
+        // 并发队列管理器 (Worker Pool)
+        // ==========================================
+        async function runWorker(materials) {
+            while(poolQueue.length > 0 && isRunning) {
+                let url = poolQueue.shift();
+                updateStats();
+
+                try {
+                    let res = await testSingleRelay(url, materials);
+                    if(res.status === 'success') {
+                        stats.success++;
+                        successfulRelays.push(url);
+                        logMsg(res.url, 'success', `完美兼容 [延时: ${res.ping}ms]`, true);
+                    } else if(res.status === 'warn') {
+                        stats.failed++;
+                        logMsg(res.url, 'warn', res.msg);
+                    } else if(res.status === 'error') {
+                        stats.failed++;
+                        logMsg(res.url, 'error', res.msg);
+                    }
+                } catch (err) {
+                    stats.failed++;
+                    logMsg(url, 'error', '未知异常断开');
+                }
+                updateStats();
+            }
+            activeWorkers--;
+            if(activeWorkers === 0 && isRunning) {
+                finishRadar();
+            }
+        }
+
+        // ==========================================
+        // UI 控制逻辑
+        // ==========================================
+        async function startRadar() {
+            let rawLines = document.getElementById('input-relays').value.split('\n');
+            let urls = [...new Set(rawLines.map(u => u.trim().replace(/\/+$/, '')).filter(u => u.startsWith('ws://') || u.startsWith('wss://')))];
+
+            if(urls.length === 0) return alert("请在文本框中输入至少一个有效的 WebSocket 地址！");
+
+            // 界面切换
+            isRunning = true;
+            document.getElementById('btn-start').classList.add('hidden');
+            document.getElementById('btn-stop').classList.remove('hidden');
+            document.getElementById('radar-anim').classList.remove('hidden');
+            document.getElementById('log-container').innerHTML = '';
+
+            // 初始化参数
+            poolQueue = urls;
+            successfulRelays = [];
+            stats = { total: urls.length, active: 0, success: 0, failed: 0 };
+            updateStats();
+
+            // 生成核心材料
+            let materials = await generateTestMaterials();
+
+            let concurrency = parseInt(document.getElementById('cfg-concurrency').value) || 10;
+            let actualWorkers = Math.min(concurrency, urls.length);
+            stats.active = actualWorkers;
+            activeWorkers = actualWorkers;
+
+            logMsg("SYSTEM", "info", `启动并发线程池，共分配 ${actualWorkers} 个 Worker 处理 ${urls.length} 个任务...`);
+
+            for(let i=0; i<actualWorkers; i++) {
+                runWorker(materials);
+            }
+        }
+
+        function stopRadar() {
+            isRunning = false;
+            poolQueue = [];
+            logMsg("SYSTEM", "warn", "正在紧急制动，等待现有 Worker 结束...");
+            setTimeout(finishRadar, 1500); // 假装有个缓冲
+        }
+
+        function finishRadar() {
+            isRunning = false;
+            stats.active = 0;
+            updateStats();
+            document.getElementById('btn-start').classList.remove('hidden');
+            document.getElementById('btn-stop').classList.add('hidden');
+            document.getElementById('radar-anim').classList.add('hidden');
+            logMsg("SYSTEM", "info", `扫描结束。共找到 ${stats.success} 个完美可用节点。`, true);
+        }
+
+        function exportResults() {
+            if(successfulRelays.length === 0) return alert("没有可以导出的结果！");
+            let str = successfulRelays.join(",");
+            let blob = new Blob([str], { type: 'text/plain' });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = `dgchat_relays_${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            alert("已成功导出，可直接粘贴到 DGChat 的节点管理器中！");
+        }
+
+        async function fetchPublicRelays() {
+            try {
+                let btn = document.querySelector('button[onclick="fetchPublicRelays()"]');
+                let oldText = btn.innerText;
+                btn.innerText = "抓取中...";
+                btn.disabled = true;
+
+                // nostr.watch API (允许跨域)
+                let res = await fetch('https://api.nostr.watch/v1/online');
+                let data = await res.json();
+                if(Array.isArray(data) && data.length > 0) {
+                    document.getElementById('input-relays').value = data.join('\n');
+                    document.getElementById('pool-count').innerText = `${data.length} 个节点`;
+                    alert(`成功获取 ${data.length} 个在线节点！`);
+                }
+            } catch(e) {
+                alert("抓取失败！可能遭到跨域限制或网络不通。请前往 nostr.watch 手动复制。");
+            } finally {
+                let btn = document.querySelector('button[onclick="fetchPublicRelays()"]');
+                btn.innerText = "🌐 从 nostr.watch 自动抓取";
+                btn.disabled = false;
+            }
+        }
+
+        // 初始化
+        window.onload = async () => {
+            if (!window.NostrTools || !window.sodium) {
+                document.getElementById('log-container').innerHTML = '<div class="text-red-500 text-center mt-10 font-bold">致命错误：无法加载 js/nostr.bundle.js 或 js/sodium.js，请确保文件位置正确！</div>';
+                document.getElementById('btn-start').disabled = true;
+                document.getElementById('btn-start').classList.add('opacity-50');
+                return;
+            }
+            nt = window.NostrTools;
+            await sodium.ready;
+        };
+
+        // 监听文本框行数更新
+        document.getElementById('input-relays').addEventListener('input', function() {
+            let count = this.value.split('\n').filter(u => u.trim().startsWith('ws')).length;
+            document.getElementById('pool-count').innerText = `${count} 个节点`;
+        });
+    </script>
+</body>
+</html>
