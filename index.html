@@ -1,128 +1,22 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>₿囤饼指南₿</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f4f4f9;
-    }
-    header {
-      background-color: #333;
-      color: #fff;
-      padding: 20px;
-      text-align: center;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 2.5em;
-    }
-    header p {
-      font-size: 1.2em;
-      margin: 5px 0;
-    }
-    .banner {
-      position: relative;
-      text-align: center;
-      color: white;
-    }
-    .banner img {
-      width: 100%;
-      height: auto;
-    }
-    .banner .overlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: rgba(0, 0, 0, 0.5);
-      padding: 20px;
-      border-radius: 10px;
-    }
-    .banner .overlay h2 {
-      margin: 0;
-      font-size: 2em;
-    }
-    nav {
-        text-align: center;
-        background-color: #f8f9fa;
-        padding: 10px 0;
-        border-bottom: 1px solid #ddd;
-    }
-    nav a {
-        text-decoration: none;
-        color: #007BFF;
-        font-size: 16px;
-        margin: 0 15px;
-    }
-    nav a:hover {
-        text-decoration: underline;
-    }
-    #pdf-container {
-        width: 100%;
-        height: calc(100vh - 50px); /* 剩余高度 */
-        border: none;
-    }
-    table {
-      width: 80%;
-      margin: 0 auto;
-      border-collapse: collapse;
-      text-align: center;
-    }
-    table td {
-      padding: 15px;
-      border: 1px solid #ddd;
-      background-color: #fafafa;
-    }
-    table a {
-      text-decoration: none;
-      color: #333;
-      font-size: 1.1em;
-    }
-    table a:hover {
-      color: #007bff;
-    }
-    footer {
-      text-align: center;
-      padding: 10px;
-      background-color: #333;
-      color: #fff;
-      margin-top: 20px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <!-- 1. 告诉搜索引擎新网址，避免旧网址抢权重 -->
+    <link rel="canonical" href="https://btcdage2011.github.io/">
+    
+    <!-- 2. 核心：0 秒后自动跳转到新网址 -->
+    <meta http-equiv="refresh" content="0; url=https://btcdage2011.github.io/">
+    
+    <title>页面跳转中...</title>
+    
+    <!-- 3. JS 加速跳转，同时不污染浏览器的“返回”历史记录 -->
+    <script>
+        window.location.replace("https://btcdage2011.github.io/");
+    </script>
 </head>
-<body>
-
-
-<header>
-  <h1>₿囤饼指南₿</h1>
-  <p>探索比特币的奥秘，遵循囤币之道</p>
-</header>
-<!-- 导航栏 -->
-<div id="navbar"></div>
-<div class="banner">
-  <img src="pic/btcdage.png" alt="比特币主题横幅">
-  <div class="overlay">
-    <h2>₿ 开启你的囤币旅程 ₿</h2>
-  </div>
-</div>
-
-
-<footer>
-  <p>&copy; 2024 ₿囤饼指南₿ - 探索比特币未来</p>
-</footer>
-<!-- 动态加载导航栏 -->
-<script>
-    fetch('nav.html')
-        .then(response => response.text())
-        .then(data => {
-            document.getElementById('navbar').innerHTML = data;
-        })
-        .catch(error => console.error('Error loading navigation:', error));
-</script>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding-top: 50px; background-color: #0b0e14; color: #ffffff;">
+    <p>页面已迁移，正在为您跳转到主站...</p>
+    <p>如果浏览器没有自动跳转，请<a href="https://btcdage2011.github.io/" style="color: #f7931a; text-decoration: underline;">点击这里直接访问</a>。</p>
 </body>
 </html>
